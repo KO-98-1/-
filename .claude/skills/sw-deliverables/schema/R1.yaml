@@ -1,0 +1,61 @@
+code: R1
+name: 사용자 요구사항 정의서
+doc: REQ
+phase: analysis
+scope: subsystem
+orientation: landscape
+purpose: >-
+  시스템의 요구사항을 도출하여 발주자와 내용을 합의하고 하나의 업무 단위로서 가치를 가지고
+  수행될 수 있는 단위로서의 업무를 도출하여 업무 내용을 기술한다.
+method: >-
+  산출물 양식의 표를 이용하여 해당 항목에 기술하며 이해하기 쉽고 구체적인 언어표현을 사용한다.
+  기능적 요구사항과 비기능 요구사항을 그룹핑하여 별도의 표로 작성한다.
+depends_on: []
+entities:
+  requirements:
+    id_type: REQ
+    desc: 요구사항 1건 = 1개 항목. 하나의 업무 단위로서 가치를 가지고 수행될 수 있는 단위로 쪼갠다.
+    fields:
+      id: {label: 요구사항 ID, required: true, desc: "요구사항별로 유일한 ID를 부여하여 기입한다. 형식 {분류코드}-{서브시스템}-{nnn}, 분류코드는 구분에 따름(기능=SFR, 성능=PER …)"}
+      name: {label: 요구사항명, required: true, desc: "도출된 요구사항을 요약할 수 있는 명칭을 기입한다."}
+      category: {label: 구분, required: true, enum_ref: requirement_categories, desc: "정보시스템 개요 및 기능목록, 기능 요구사항, 성능 요구사항, 품질 요구사항, 인터페이스 요구사항, 데이터 요구사항, 운영 요구사항, 제약사항 중에서 선택(보안·테스트 등 공공 RFP 분류 추가 허용)"}
+      description: {label: 요구사항 설명, required: true, desc: "사용자 요구사항을 구체적이고 상세하게 기술한다.", ask: "'{name}'({id})의 상세 내용(대상 사용자, 처리 조건, 결과)은 무엇인가요?"}
+      source: {label: 요구사항 출처, desc: "요구사항이 제시된 문서에 대하여 문서번호와 문서명을 기술한다. 비워 두면 _meta.sources의 입력 문서(번호·제목·일자)로 자동 기재된다."}
+      constraints: {label: 제약사항, desc: "요구사항이 수행되기 위하여 필요로 하는 법적 또는 기술적인 조건을 기술한다.", ask: "'{name}'({id}) 구현 시 지켜야 할 법적·기술적 제약이 있나요?"}
+      priority: {label: 중요도, enum: [상, 중, 하], desc: "해당 요구사항의 전체 시스템 구현 측면에서의 중요도를 기술한다.(상, 중, 하 중에서 선택)", ask: "'{name}'({id})의 중요도는 상/중/하 중 무엇인가요?"}
+      acceptance: {label: 검수기준, desc: "요구사항을 구현한 후 구현에 대한 품질을 정량적 또는 정성적으로 측정할 수 있는 기준을 기술한다.", ask: "'{name}'({id})의 검수(합격 판정) 기준은 무엇인가요?"}
+      solution: {label: 해결방안, desc: "요구사항의 해결방안을 구체적으로 기재한다.", ask: "'{name}'({id})의 구현(해결) 방안은 무엇인가요?"}
+      note: {label: 비고, blank: silent, desc: "위의 항목에 포함되지 않으나 고려해야 할 사항이 있으면 기술한다."}
+layout:
+  - section: 1. 기능 요구사항
+  - table:
+      source: requirements
+      filter: {field: category, group: functional}
+      sort: id
+      columns:
+        - {label: 요구사항 ID, key: id, w: 9, align: center}
+        - {label: 요구사항명, key: name, w: 10}
+        - {label: 구분, key: category, w: 7, align: center}
+        - {label: 요구사항 설명, key: description, w: 22}
+        - {label: 요구사항 출처, key: source, derive: sources_docs, w: 11}
+        - {label: 제약사항, key: constraints, w: 9}
+        - {label: 중요도, key: priority, w: 5, align: center}
+        - {label: 해결방안, key: solution, w: 11}
+        - {label: 검수기준, key: acceptance, w: 10}
+        - {label: 비고, key: note, w: 6}
+  - section: 2. 비기능 요구사항
+  - table:
+      source: requirements
+      filter: {field: category, group: nonfunctional}
+      sort: id
+      columns:
+        - {label: 요구사항 ID, key: id, w: 9, align: center}
+        - {label: 요구사항명, key: name, w: 10}
+        - {label: 구분, key: category, w: 7, align: center}
+        - {label: 요구사항 설명, key: description, w: 22}
+        - {label: 요구사항 출처, key: source, derive: sources_docs, w: 11}
+        - {label: 제약사항, key: constraints, w: 9}
+        - {label: 중요도, key: priority, w: 5, align: center}
+        - {label: 해결방안, key: solution, w: 11}
+        - {label: 검수기준, key: acceptance, w: 10}
+        - {label: 비고, key: note, w: 6}

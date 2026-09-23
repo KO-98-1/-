@@ -1,0 +1,43 @@
+code: R3
+name: 요구사항 추적표
+doc: RTM
+phase: analysis
+scope: system
+orientation: landscape
+generated: true      # AI가 작성하지 않음 — 다른 산출물의 ID 연결로부터 자동 생성
+purpose: >-
+  시스템의 요구사항을 도출하여 개발의 각 단계별로 작성한 산출물이 일관성을 가지는지를 추적할 수 있도록
+  각 단계별 산출물의 추적성을 관리하기 위하여 작성한다.
+method: >-
+  사용자 요구사항 정의서로부터 시작하여 분석, 설계, 구현, 시험의 각 단계별 산출물에 ID를 식별하고
+  전단계 산출물과 후속단계 산출물간의 연계관계에 맵핑하여 연관관계가 끊어지지 않고 추적할 수 있도록 한다.
+  전체 시스템에 대하여 한 개의 표로 작성하며, 각 산출물의 ID와 이름을 기술한다.
+depends_on: [R1, R2, D2, D3, D9, I1, D11, D10, D7]
+trace_rules:
+  - "요구사항 → 유스케이스: 유스케이스.requirement_ids"
+  - "유스케이스 → 화면: 화면.usecase_id"
+  - "유스케이스 → 컴포넌트: 컴포넌트.usecase_ids"
+  - "유스케이스 → 테이블: 설계클래스(usecase_ids) → 엔티티(class_id) → 테이블(entity_id), 또는 테이블.usecase_ids"
+  - "컴포넌트/화면 → 프로그램 파일: 프로그램.component_ids / screen_ids / usecase_ids"
+  - "컴포넌트 → 단위시험: 단위시험.component_id"
+  - "유스케이스 → 통합시험 시나리오: 시나리오.usecase_id"
+  - "요구사항 → 시스템시험 시나리오: 시스템시험 그룹.requirement_id"
+entities: {}
+layout:
+  - table:
+      source: $trace
+      header:
+        - [{label: 분석 단계, span: 4}, {label: 설계 단계, span: 3}, {label: 구현 단계, span: 1}, {label: 시험 단계, span: 3}]
+        - [{label: 사용자 요구사항 정의서, span: 2}, {label: 유스케이스 명세서, span: 2}, {label: 사용자 인터페이스 설계서}, {label: 컴포넌트 설계서}, {label: 데이터베이스 설계서}, {label: 프로그램 코드}, {label: 단위시험 결과서}, {label: 통합시험 결과서}, {label: 시스템시험 결과서}]
+      columns:
+        - {label: 요구사항ID, key: req_id, w: 9, align: center, merge: true}
+        - {label: 요구사항명, key: req_name, w: 12, merge: true}
+        - {label: 유스케이스ID, key: uc_id, w: 8, align: center, trace: true}
+        - {label: 유스케이스명, key: uc_name, w: 11, trace: true}
+        - {label: 화면ID, key: screen_ids, w: 8, align: center, trace: true}
+        - {label: 컴포넌트ID, key: component_ids, w: 8, align: center, trace: true}
+        - {label: 테이블ID, key: table_ids, w: 10, align: center, trace: true}
+        - {label: 파일 ID, key: program_ids, w: 8, align: center, trace: true}
+        - {label: 단위시험ID, key: unit_test_ids, w: 8, align: center, trace: true}
+        - {label: 시나리오ID, key: integration_ids, w: 8, align: center, trace: true}
+        - {label: 시나리오ID, key: system_test_ids, w: 8, align: center, trace: true}

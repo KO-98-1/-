@@ -1,0 +1,32 @@
+code: T2
+name: 시스템시험 결과서
+doc: STR
+phase: test
+scope: subsystem
+orientation: landscape
+extends: D7
+derived_from: D7
+results: true
+purpose: 총괄시험 계획서와 시스템시험 시나리오에 따라서 수행한 시험 결과를 기술한다.
+method: >-
+  성능, 부하, 볼륨, 보안 등 시험 유형별로 시스템시험을 수행하고 시험 예상결과와 시험결과를 비교한다.
+  설계단계 산출물인 시스템시험 시나리오를 현행화하여 시험을 수행 후 시험결과를 기록한다.
+  (가이드 T2 양식은 '관련 유스케이스ID'를, D7은 '관련 요구사항ID'를 쓰므로 추적성을 위해 두 행을 모두 표기한다.)
+depends_on: [D7]
+layout:
+  - cards:
+      source: groups
+      sort: requirement_id
+      rows:
+        - kv: [{label: 시험 유형, key: test_type}]
+        - kv: [{label: 관련 요구사항ID, key: requirement_id}]
+        - kv: [{label: 관련 유스케이스ID, key: usecase_ids, derive: req_usecases}]
+        - subtable:
+            source: scenarios
+            columns:
+              - {label: 시험시나리오 ID, key: id, w: 3.5, align: center}
+              - {label: 시험시나리오, key: name, w: 3.5}
+              - {label: 시험절차, key: procedure, w: 6, format: bullets}
+              - {label: 만족기준, key: criteria, w: 4.5, format: bullets}
+              - {label: 시험결과, key: result, w: 4.5, result: true}
+              - {label: 비고, key: note, w: 2}

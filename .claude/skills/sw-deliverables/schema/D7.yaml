@@ -1,0 +1,47 @@
+code: D7
+name: 시스템시험 시나리오
+doc: STS
+phase: design
+scope: subsystem
+orientation: landscape
+results: false            # 설계단계: 시험결과는 기술하지 않음(가이드 명시)
+purpose: >-
+  시스템의 포괄적인 비기능 요구사항에 대한 시험을 수행하기 위하여 시험 항목, 시험 절차 및 기준을 설정하기 위한
+  시나리오를 작성한다.
+method: >-
+  성능, 부하, 볼륨, 보안 등 시험 유형별로 시스템시험을 수행하기 위해 시나리오에 대한 시험 절차를 작성하고
+  시험 만족기준과 시험결과를 작성한다.
+depends_on: [R1]
+entities:
+  groups:
+    desc: "시험 유형 + 관련 요구사항 1묶음. 비기능 요구사항(PER·QUR·SER·OPR 등) 1건당 1그룹이 기본."
+    fields:
+      test_type: {label: 시험 유형, required: true, enum: [성능, 부하, 볼륨, 보안, 가용성, 호환성, 사용성, 복구, 스트레스], desc: "성능, 부하, 볼륨, 보안 시험 등 시험의 측정 형태를 기입한다."}
+      requirement_id: {label: 관련 요구사항 ID, ref: REQ, required: true, desc: "관련되는 사용자 요구사항 정의서의 요구사항 ID를 기술한다."}
+      usecase_ids: {label: 관련 유스케이스 ID, type: ids, ref: UC, blank: silent, desc: "시스템시험 결과서(T2) 양식의 '관련 유스케이스ID'용(있으면)"}
+      scenarios:
+        label: 시나리오
+        type: object-list
+        fields:
+          id: {label: 시험 시나리오 ID, id_type: ST, desc: "시스템시험 시나리오에 대한 유일한 ID를 부여하여 기입한다."}
+          name: {label: 시험 시나리오, desc: "시험에 대한 간략한 설명을 기술한다."}
+          procedure: {label: 시험 절차, type: list, desc: "시험 시나리오별 시험을 수행하는 절차를 기술한다."}
+          criteria: {label: 만족기준, type: list, desc: "시험 수행 후 수행결과 측정치에 대한 만족수준 값을 기술한다(예: 3,000건 조회 4초 이내, CPU 40% 이내).", ask: "시나리오 {id}의 만족기준(목표 수치)은?"}
+          result: {label: 시험결과, result: true, desc: "설계단계에서는 기술하지 않으며, 결과서로 활용될 경우 실제 시험을 수행한 결과를 기술한다."}
+          note: {label: 비고, blank: silent, desc: "기타 참조할 만한 사항을 기술한다."}
+layout:
+  - cards:
+      source: groups
+      sort: requirement_id
+      rows:
+        - kv: [{label: 시험 유형, key: test_type}]
+        - kv: [{label: 관련 요구사항ID, key: requirement_id}]
+        - subtable:
+            source: scenarios
+            columns:
+              - {label: 시험시나리오 ID, key: id, w: 4, align: center}
+              - {label: 시험시나리오, key: name, w: 4}
+              - {label: 시험절차, key: procedure, w: 7, format: bullets}
+              - {label: 만족기준, key: criteria, w: 5, format: bullets}
+              - {label: 시험결과, key: result, w: 2, result: true}
+              - {label: 비고, key: note, w: 2}

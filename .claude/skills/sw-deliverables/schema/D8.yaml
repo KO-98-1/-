@@ -1,0 +1,82 @@
+code: D8
+name: 엔티티 관계 모형 기술서
+title: 엔티티 관계 모형 기술서
+doc: ERM
+phase: design
+scope: subsystem
+orientation: portrait
+purpose: 시스템의 요구사항을 만족하기 위한 주요 엔티티 및 엔티티간의 관계를 표현하고 엔티티에 대한 명세를 기술한다.
+method: >-
+  논리적 데이터 모델링을 통한 엔티티 관계 모형도(ERD)를 작성하여 엔티티를 식별한다. 작성한 엔티티 관계 모형도와
+  개념적 클래스도를 비교하여 볼 필요가 있다. ERD에서는 엔티티가 모두 속성을 가져야 하나 개념 클래스는 속성이 없는
+  기능만을 가진 클래스가 존재할 수 있다. 식별한 엔티티는 각각 상세한 명세를 작성한다.
+depends_on: [D1]
+entities:
+  erds:
+    id_type: ERD
+    desc: ERD 1장. 그림은 entities/relationships로부터 자동 생성된다.
+    fields:
+      id: {label: ERD ID, required: true, desc: "ERD별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: ERD 명, required: true, desc: "ERD의 이름을 부여하여 기입한다."}
+      entity_ids: {label: 포함 엔티티, type: ids, ref: ENT, desc: "비우면 서브시스템의 전체 엔티티"}
+      mermaid: {label: 다이어그램 직접 지정, type: mermaid, blank: silent}
+  entities:
+    id_type: ENT
+    desc: 논리 엔티티 1개
+    fields:
+      id: {label: 엔티티 ID, required: true, desc: "엔티티별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 엔티티명, required: true, desc: "도출된 엔티티의 명칭을 기입한다."}
+      class_id: {label: 관련 클래스 ID, ref: CL, desc: "관련되는 (엔티티 성격) 설계 클래스 ID"}
+      description: {label: 엔티티 설명, desc: "엔티티에 대한 간단한 설명을 기술한다."}
+      attributes:
+        label: 속성
+        type: object-list
+        fields:
+          name: {label: 속성명, desc: "엔티티 속성의 내용과 특성을 인식할 수 있는 명칭을 기술한다."}
+          synonym: {label: 동의어, blank: silent, desc: "동일한 의미로 사용되지만 하나의 용어로 표준화되지 못한 속성명을 기술한다."}
+          type: {label: 타입, enum: [문자, 숫자, 날짜, 일시, 여부, 이진], desc: "속성의 타입을 문자, 숫자, 날짜 등으로 기술한다."}
+          length: {label: 길이, desc: "속성의 최대 허용 길이를 기술한다."}
+          not_null: {label: NOT NULL, enum: [Y, N], desc: "필수항목 여부를 기술한다."}
+          pk: {label: PK, enum: [Y, N], desc: "주키를 의미한다."}
+          fk: {label: FK, enum: [Y, N], desc: "외래키를 의미한다."}
+          idx: {label: INX, enum: [Y, N], desc: "인덱스를 의미한다."}
+          default: {label: 기본값, blank: silent, desc: "속성의 기본값이 있는 경우에 그 값을 기재한다."}
+          constraint: {label: 제약조건, blank: silent, desc: "속성의 특이한 제약조건이 있는 경우 기재한다."}
+      relationships:
+        label: 관계
+        type: object-list
+        blank: silent
+        fields:
+          target: {label: 대상 엔티티 ID}
+          cardinality: {label: 관계차수, enum: ["1:1", "1:N", "N:1", "N:M"]}
+          optional: {label: 선택 관계 여부, enum: [Y, N]}
+          label: {label: "관계명(동사형, 예: 주문한다)"}
+layout:
+  - section: 1. 엔티티 관계도(ERD)
+  - cards:
+      source: erds
+      sort: id
+      rows:
+        - kv: [{label: ERD ID, key: id}, {label: ERD 명, key: name}]
+        - diagram: {kind: erd, key: id}
+  - section: 2. 엔티티 명세서
+  - cards:
+      source: entities
+      sort: id
+      rows:
+        - kv: [{label: 엔티티 ID, key: id}, {label: 엔티티명, key: name}]
+        - kv: [{label: 관련 클래스 ID, key: class_id}, {label: 관련 클래스명, lookup: class_id, field: name}]
+        - kv: [{label: 엔티티 설명, key: description}]
+        - subtable:
+            source: attributes
+            columns:
+              - {label: 속성명, key: name, w: 4}
+              - {label: 동의어, key: synonym, w: 3}
+              - {label: 타입, key: type, w: 2, align: center}
+              - {label: 길이, key: length, w: 2, align: center}
+              - {label: NOT NULL, key: not_null, w: 2, align: center}
+              - {label: PK, key: pk, w: 2, align: center}
+              - {label: FK, key: fk, w: 2, align: center}
+              - {label: INX, key: idx, w: 2, align: center}
+              - {label: 기본값, key: default, w: 2}
+              - {label: 제약조건, key: constraint, w: 3}

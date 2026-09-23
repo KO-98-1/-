@@ -1,0 +1,52 @@
+code: D5
+name: 아키텍처 설계서
+doc: ARC
+phase: design
+scope: system
+orientation: portrait
+purpose: >-
+  시스템의 품질을 확보하기 위하여 전체시스템에 대한 청사진으로서의 아키텍처를 작성한다. 소프트웨어 아키텍처는
+  개발 대상 응용 소프트웨어에 대한 아키텍처이며, 시스템 아키텍처는 응용 소프트웨어와 이에 상호작용하는 환경 및
+  네트워크가 포함된 아키텍처를 의미한다.
+method: >-
+  소프트웨어 아키텍처는 선정된 아키텍처 패턴을 중심으로 컴포넌트와 상호작용하는 커넥션 및 가시적인 속성을 표현한다.
+  시스템 아키텍처는 개발 대상시스템과 상호작용하는 하드웨어, 시스템 소프트웨어 및 네트워크와의 관계를 표현한다.
+  아키텍처 요구사항 및 구현방안은 아키텍처 관점에서의 시스템의 품질, 보안, 성능, 장애복구 등의 요구사항과
+  이에 대한 구현방안을 기술한다.
+depends_on: [R1, D3]
+entities:
+  software_architecture:
+    type: object
+    desc: 소프트웨어 아키텍처 (그림 + 설명)
+    fields:
+      description: {label: 설명, type: text, desc: "아키텍처 패턴(예: 3-Tier, MVC, MSA), 레이어, 주요 컴포넌트와 커넥션을 기술"}
+      mermaid: {label: 아키텍처 그림(Mermaid), type: mermaid, desc: "레이어는 위→아래(flowchart TB), 화살표에 호출 방식 라벨 필수"}
+      _meta: {label: 메타}
+  system_architecture:
+    type: object
+    desc: 시스템 아키텍처 (그림 + 설명)
+    fields:
+      description: {label: 설명, type: text, desc: "서버·네트워크·외부 시스템 등 H/W, 시스템 S/W 구성과 관계"}
+      mermaid: {label: 아키텍처 그림(Mermaid), type: mermaid}
+      _meta: {label: 메타}
+  arch_requirements:
+    desc: 아키텍처 요구사항 및 구현방안 (요구사항 1건 = 1항목)
+    fields:
+      requirement_id: {label: 요구사항 ID, ref: REQ, required: true, desc: "사용자 요구사항 정의서의 관련된 요구사항 ID를 기술한다."}
+      content: {label: 요구사항 내용, desc: "요구사항 내용을 상세하게 기술한다."}
+      solution: {label: 구현방안, type: text, desc: "요구사항 구현방안을 상세하게 기술한다.", ask: "요구사항 {requirement_id}의 아키텍처 구현방안(예: 이중화, 암호화 방식)은?"}
+layout:
+  - section: 1. 소프트웨어 아키텍처
+  - diagram: {kind: narr, key: software_architecture, caption: 소프트웨어 아키텍처}
+  - textblock: {key: software_architecture.description, meta_of: software_architecture}
+  - section: 2. 시스템 아키텍처
+  - diagram: {kind: narr, key: system_architecture, caption: 시스템 아키텍처}
+  - textblock: {key: system_architecture.description, meta_of: system_architecture}
+  - section: 3. 아키텍처 요구사항 및 구현방안
+  - cards:
+      source: arch_requirements
+      sort: requirement_id
+      rows:
+        - kv: [{label: 요구사항 ID, key: requirement_id}]
+        - label_text: {label: 요구사항 내용, key: content, derive: requirement_desc}
+        - label_text: {label: 구현방안, key: solution, format: text}

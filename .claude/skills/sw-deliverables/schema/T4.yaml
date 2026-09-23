@@ -1,0 +1,56 @@
+code: T4
+name: 운영자 지침서
+doc: OPG
+phase: test
+scope: system
+orientation: portrait
+narrative: true
+purpose: 개발한 시스템을 운영자가 효과적으로 관리와 운영을 할 수 있도록 시스템 관리 및 운영에 대한 지침을 기술한다.
+method: >-
+  개발 시스템의 관리 및 운영 측면에서 시스템의 지속적인 관리가 가능하도록 상세하게 작성하며 이해하기 쉽고 구체적인
+  언어표현을 사용한다. 시스템의 특성에 따라 기술하는 항목이 차이가 많이 발생할 수 있으므로 관련항목을 수정하여 사용한다.
+depends_on: [D5]
+entities:
+  sections:
+    type: sections
+    desc: "목차 번호(key)별 내용 {text, table, mermaid, _meta}"
+  functions:
+    desc: 5장 기능별 사용법(운영·관리 기능) — 1기능 = 1항목
+    fields:
+      name: {label: 기능명, required: true}
+      description: {label: 기능 설명, type: text}
+      cautions: {label: 주의 사항, type: list}
+      errors:
+        label: 오류 메시지 및 해결 방법
+        type: object-list
+        fields:
+          message: {label: 오류 메시지}
+          cause: {label: 원인}
+          action: {label: 처리 방법}
+outline:
+  - {num: "1", title: 개요, key: "1", desc: "시스템의 운영자 측면의 전체적인 개요를 기술한다."}
+  - {num: "2", title: 시스템 설치}
+  - {num: "2.1", title: 시스템 구성}
+  - {num: "2.1.1", title: 시스템 구성도, key: "2.1.1", diagram: true}
+  - {num: "2.1.2", title: 하드웨어 구성, key: "2.1.2", table: {columns: [구분, 사양]}}
+  - {num: "2.1.3", title: 소프트웨어 구성, key: "2.1.3", table: {columns: [구분, 설치 프로그램]}}
+  - {num: "2.1.4", title: 네트워크 구성, key: "2.1.4"}
+  - {num: "2.2", title: 시스템 설치 절차, key: "2.2"}
+  - {num: "3", title: 시스템 운용}
+  - {num: "3.1", title: 자료 관리, key: "3.1"}
+  - {num: "3.2", title: 백업 관리, key: "3.2"}
+  - {num: "3.3", title: 장애 내역 및 복구 절차, key: "3.3"}
+  - {num: "4", title: 사용 지침}
+  - {num: "4.1", title: 시작 및 종료 방법, key: "4.1"}
+  - {num: "4.2", title: 공통 사항, key: "4.2"}
+  - {num: "5", title: 기능별 사용법}
+  - repeat: functions
+    num: "5.{i}"
+    title_key: name
+    children:
+      - {num: "5.{i}.1", title: 기능 설명, key: description}
+      - {num: "5.{i}.2", title: 주의 사항, key: cautions}
+      - {num: "5.{i}.3", title: 오류 메시지 및 해결 방법, key: errors, table: {columns: [오류 메시지, 원인, 처리 방법], fields: [message, cause, action]}}
+  - {num: "부록", title: "", plain_title: 부록, key: appendix}
+layout:
+  - narrative: {}

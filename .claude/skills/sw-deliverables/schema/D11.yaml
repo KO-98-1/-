@@ -1,0 +1,60 @@
+code: D11
+name: 단위시험 케이스
+doc: UTC
+phase: design
+scope: subsystem
+orientation: landscape
+results: false            # 설계단계: 시험결과는 기술하지 않음(가이드 명시)
+purpose: >-
+  단위 프로그램 및 컴포넌트를 설계한 개발자가 컴포넌트 명세서에 정의된 바와 같이 설계한 컴포넌트 프로그램의 오류를
+  검출할 목적으로 배포하는 컴포넌트 단위로 시험하기 위한 시험 설계를 기술한다.
+method: 개발자가 설계한 컴포넌트 단위로 작성하며 컴포넌트별 시험케이스를 작성한다.
+depends_on: [D3]
+entities:
+  unit_tests:
+    id_type: UT
+    desc: 단위시험 1건(컴포넌트/프로그램 단위)
+    fields:
+      id: {label: 단위시험 ID, required: true, desc: "단위 컴포넌트(프로그램)별 유일한 ID를 부여하여 기입한다."}
+      description: {label: 설명, desc: "단위 컴포넌트(프로그램)에 대한 간략한 설명을 기입한다."}
+      component_id: {label: 관련 컴포넌트 ID, ref: CMP, required: true, desc: "관련되는 컴포넌트 설계서의 컴포넌트 ID를 기술한다."}
+      program_id: {label: 관련 프로그램 ID, ref: PGM, desc: "관련되는 프로그램 ID를 기술한다."}
+      cases:
+        label: 시험 케이스
+        type: object-list
+        fields:
+          id: {label: 케이스 ID, id_type: UTC, desc: "단위 컴포넌트(프로그램)에 수행할 시험 케이스별 식별자를 부여하여 기술한다."}
+          name: {label: 케이스명, desc: "시험 케이스의 명칭을 기입한다."}
+          permission: {label: 작업권한, desc: "적용하는 사용자 권한을 표기한다."}
+          test_data: {label: 시험데이터, desc: "해당 시험 케이스를 실행하는데 필요한 시험 데이터를 기술한다(실제 값이 아니면 조건 표시 가능)."}
+          procedure: {label: 시험항목 및 처리절차, type: steps, desc: "시험 데이터를 입력하여 시험하는 단계와 단계별 처리 절차 및 방법을 기술한다."}
+          expected: {label: 예상결과 및 검증방법, type: list, desc: "예상 결과와 검증 방법(예: 화면 메시지 확인, SQL로 DB 확인)"}
+          result:
+            label: 시험결과
+            type: object
+            result: true
+            desc: 설계단계에서는 기술하지 않으며, 결과서로 활용될 경우 실제 시험을 수행한 결과를 기술한다.
+            fields:
+              performer: {label: 수행자}
+              date: {label: 수행일}
+              outcome: {label: 결과, enum: [pass, fail]}
+              defect: {label: 결함내용}
+              defect_fixed: {label: 결함조치여부}
+layout:
+  - cards:
+      source: unit_tests
+      sort: id
+      rows:
+        - kv: [{label: 단위시험ID, key: id}]
+        - kv: [{label: 설명, key: description}]
+        - kv: [{label: 관련 컴포넌트 ID, key: component_id}, {label: 관련프로그램ID, key: program_id}]
+        - subtable:
+            source: cases
+            columns:
+              - {label: 케이스ID, key: id, w: 3, align: center}
+              - {label: 케이스명, key: name, w: 3}
+              - {label: 작업권한, key: permission, w: 2, align: center}
+              - {label: 시험데이터, key: test_data, w: 3}
+              - {label: 시험항목 및 처리절차, key: procedure, w: 5, format: steps}
+              - {label: 예상결과 및 검증방법, key: expected, w: 5, format: bullets}
+              - {label: 시험결과, key: result.outcome, w: 3, result: true}

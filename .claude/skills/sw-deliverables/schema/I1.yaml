@@ -1,0 +1,44 @@
+code: I1
+name: 프로그램 코드
+doc: PGM
+phase: implementation
+scope: subsystem
+orientation: portrait
+purpose: 설계 명세서에서 기술한 프로그램 코드에 대한 물리적인 형상과 코드 관리를 위한 명세를 기술한다.
+method: >-
+  프로그램 코드의 프로그램 목록을 기술한다. 소스 저장소가 있으면 'swd scan-code'로 파일 목록 초안을 만든 뒤
+  컴포넌트·화면과 연결한다. 소스코드 자체는 별도 제출한다.
+depends_on: [D3, D2]
+entities:
+  programs:
+    id_type: PGM
+    desc: 프로그램 파일 1개(또는 배포 단위 1개)
+    fields:
+      id: {label: 프로그램파일 ID, required: true, desc: "프로그램 파일의 ID를 부여하여 기입한다."}
+      file_name: {label: 프로그램파일명, required: true, desc: "프로그램 파일 명칭을 기입한다(예: OrderController.java, sa-order.jar)."}
+      path: {label: 경로, blank: silent, desc: "저장소 내 경로(참고)"}
+      component_ids: {label: 관련 컴포넌트 ID, type: ids, ref: CMP, desc: "추적표 연결용"}
+      screen_ids: {label: 관련 화면 ID, type: ids, ref: SCR, blank: silent}
+      usecase_ids: {label: 관련 유스케이스 ID, type: ids, ref: UC, blank: silent}
+      note: {label: 비고, blank: silent, desc: "기타 참조할 만한 사항을 기술한다."}
+  source_submission:
+    type: object
+    desc: 2. 프로그램 소스코드(소스코드 제출) — 제출 방법·위치
+    fields:
+      text: {label: 제출 내용, type: text, desc: "소스코드 제출 방식(예: 형상관리 저장소 URL·태그, 제출 매체)"}
+      _meta: {label: 메타}
+layout:
+  - section: 1. 프로그램 목록
+  - table:
+      source: programs
+      sort: id
+      header:
+        - [{label: 서브시스템명, span: 1, rowspan: 2}, {label: 프로그램파일, span: 2}, {label: 비고, span: 1, rowspan: 2}]
+      columns:
+        - {label: 서브시스템명, ctx: sub.name, w: 6}
+        - {label: ID, key: id, w: 6, align: center}
+        - {label: 파일명, key: file_name, w: 12}
+        - {label: 비고, key: note, w: 8}
+  - section: 2. 프로그램 소스코드
+  - note: (소스코드 제출)
+  - textblock: {key: source_submission.text, meta_of: source_submission}

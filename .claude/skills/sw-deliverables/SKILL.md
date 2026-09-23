@@ -1,0 +1,112 @@
+---
+name: sw-deliverables
+description: >-
+  CBD SW개발 표준 산출물 관리 가이드(25종 필수 + 선택 2종)에 맞춰 회의록·아이디어·수정사항으로부터 산출물(DOCX)을
+  자동 작성한다. 사용자가 "산출물 작성해줘", "표준 산출물", "회의록으로 요구사항 정의서/유스케이스/설계서 만들어줘",
+  "이 프로그램 기반으로 산출물 작성", "수정사항 반영해줘", "추적표 갱신" 등을 요청하면 사용한다.
+  마스터(이 세션)가 자료를 읽고 배분·검증·게이트를 맡고, 서브시스템별 작성은 서브에이전트에 병렬로 맡긴다.
+---
+
+# SW 표준 산출물 자동 작성 (마스터 절차서)
+
+너는 **마스터 에이전트**다. 자료를 읽고, 서브시스템별 작성 지시서를 만들어 서브에이전트에 병렬로 맡기고,
+검증·렌더링·단계별 확인(게이트)을 진행한다. 문서(.docx)는 직접 만들지 않는다 — `swd`가 가이드 양식대로 찍어낸다.
+
+- 도구: `node "<이 스킬의 Base directory>/scripts/swd.mjs" <명령>` (아래에서는 `swd`로 줄여 씀). 모든 명령은 산출물 폴더에서 실행하거나 `--root <폴더>`를 붙인다.
+- 참고 문서(필요할 때 읽는다): `reference/workflow.md`(명령·파일 상세), `reference/writing-rules.md`(작성 원칙),
+  `reference/extraction.md`(회의록 사실 추출), `reference/id-rules.md`(ID 규칙), `reference/diagram-style.md`, `reference/security.md`
+
+## 확정된 운영 정책 (사용자 결정 — 바꾸지 말 것)
+
+| 항목 | 정책 |
+|---|---|
+| AI 추론 범위 | 입력 근거 = `fact`, 가이드상 도출되는 설계 = `ai`(노란 음영, 검토 전), 근거 없는 사실(이름·수치·일정·제품) = 비움 |
+| 출력 | Word(DOCX), 서브시스템별 파일 + 시스템 공통 파일 |
+| 공란 표시 | `(정보 부족)` 입력에 정보 없음 · `(미정)` 논의됐으나 미결정 |
+| 확인 | **단계마다 사용자 확인**(분석 → 설계 → 구현 → 시험) |
+| 메타 | 시스템명·작성자·승인자는 `sw-config.yaml`에 고정, 버전은 기입하지 않음 |
+| 수정사항 | 영향·충돌을 보여주고 **확인 요청 후** AI가 반영 |
+| 가이드 불일치 | 상황에 맞게 처리(`reference/writing-rules.md` 7절) |
+| 보안 | 최초 1회 주의사항 안내(`reference/security.md`) |
+
+## 0. 준비 (최초 1회)
+
+1. `swd doctor` → 의존성이 없으면 `swd setup`(사용자 공유 폴더에 1회 설치, 약 460MB, 수 분).
+2. 산출물 폴더 확인: 현재 프로젝트에 `deliverables/sw-config.yaml`이 없으면 `swd init deliverables`.
+   `input/`(회의록·아이디어·수정사항·참고문서)이 비어 있으면 자료를 넣어 달라고 요청하고 멈춘다.
+3. `sw-config.yaml`의 `security.notice_shown`이 false면 `reference/security.md` 요지를 3~4줄로 안내하고 true로 바꾼다.
+4. `swd ingest` → `needs_manual`(PDF 변환 도구 없음)인 항목은 원본을 Read로 읽어 `.work/inputs/<ID>.txt`에 텍스트로 저장하고
+   `.work/inputs/index.yaml`의 해당 항목 `status`를 `ok`, `lines`를 줄 수로 고친다.
+5. 정규화 텍스트(`.work/inputs/*.txt`)를 **모두** 읽는다(`reference/extraction.md`).
+6. `sw-config.yaml`을 채운다: `project.system_name`, `project.id`, `document.author/approver`(자료에 있으면),
+   `subsystems`(업무 영역 2~6개 + 공통 `COM`), `deliverables.skip`(예: 데이터 전환이 없으면 D12), `deliverables.optional`.
+7. **게이트 0** — AskUserQuestion으로 시스템명·서브시스템 구분·작성자/승인자·생략 산출물을 확인받는다.
+
+## 1. 단계 반복 (analysis → design → implementation → test)
+
+각 단계에서 다음을 순서대로 한다.
+
+1. **배분/사전 작업(마스터)**
+   - 분석: `.work/allocation.yaml` 작성 — 서브시스템별 `{inputs: {입력ID: "줄 범위(요지)"}, notes: "…"}`, 시스템 공통은 `SYSTEM`.
+     비기능 요구사항·공통 기능은 `COM`으로. 입력 간 충돌은 게이트에서 보고할 목록에 적어 둔다.
+   - 설계: 서브에이전트가 참조할 공용 데이터베이스를 먼저 `model/SYSTEM/D9.yaml`의 `databases`로 정의한다(ID `DB-01`…, 입력에 없으면 `origin: ai`).
+     그리고 `.work/allocation.yaml`에 `shared.design_notes`로 **데이터 소유권 표**를 적는다 — 핵심 테이블 물리명(`TB_<SUB>_<영문>`)을
+     어느 서브시스템이 정의하는지, 다른 서브시스템은 `fk_ref`로만 참조한다는 것, 병렬 작성 중에는 다른 서브시스템 ID를
+     relationships·depends_on에 넣지 않는다는 것, 비기능 시험(D7)은 COM만 작성한다는 것. 서브시스템별 추가 지시는 `<SUB>.design_notes`.
+     (병렬 작성 시 같은 테이블이 중복 설계되는 것을 막는 핵심 단계)
+   - 구현: 소스가 있으면 `swd scan-code --src <소스폴더> --sub <ID>`. 그리고 `swd derive --stage implementation`.
+   - 시험: `swd derive --stage test`(D10→T1, D7→T2, T6→T7 현행화).
+2. **지시서 생성**: `swd prompt --stage <단계> --all` → `.work/prompts/<단계>_<SUB>.md`
+3. **병렬 작성**: 지시서가 생성된 서브시스템(+SYSTEM)마다 서브에이전트를 **한 메시지에서 동시에** 띄운다.
+   - `subagent_type: sw-deliverable-writer`(없으면 general-purpose)
+   - 프롬프트: `작성 지시서 <지시서 절대경로>를 끝까지 읽고 그대로 수행하라. 허용된 파일만 수정하고, 끝나면 지시서 7장 형식으로 보고하라.`
+   - 서브에이전트는 YAML만 쓰고 `swd validate`로 오류를 없앤 뒤 보고한다.
+4. **병합 검증**: 모두 끝나면 `swd validate`. 다른 서브시스템 ID 참조 오류·ID 중복은 마스터가 직접 고치거나(작은 수정)
+   해당 서브에이전트에 SendMessage로 수정을 요청한다. 오류 0건이 될 때까지.
+   설계단계에서는 병합 후 서브시스템 간 연결을 마스터가 보완한다: 엔티티 `relationships`(다른 서브시스템 엔티티 대상),
+   컴포넌트 `depends_on`(공통 컴포넌트 호출 등). 입력 근거 없이 추가한 연결은 해당 항목 `_meta.ai_fields`에 `relationships`/`depends_on`을 넣어 표시한다.
+5. **문서 생성**: `swd build --stage <단계>` → `output/<SUB>_<이름>/*.docx`, `output/00_시스템공통/`, 검토 리포트 `output/_검토/검토리포트_<단계>_<날짜>.md`
+   - 그림 오류가 나면 메시지의 `.mmd` 원본을 보고 모델의 해당 데이터(또는 mermaid)를 고친 뒤 다시 build.
+   - 양식 이상이 의심되면 `swd preview --file <docx>`로 PNG를 만들어 눈으로 확인한다.
+6. **게이트(단계 확인)** — 검토 리포트를 읽고 사용자에게 다음을 간결하게 보여준다:
+   생성 파일 수와 위치 · 서브시스템별 항목 수 · AI 제안(검토 전) 건수와 대표 예 3~5개 · 미정 항목 · 핵심 질문 5~10개 · 입력 간 충돌.
+   그리고 AskUserQuestion으로 묻는다: **승인하고 다음 단계로 / 수정·보완 요청 / 질문에 답하고 다시 작성 / 여기서 중단**.
+   - 사용자가 질문에 답하면: 답변을 `input/아이디어/답변_<날짜>.md`로 저장 → `swd ingest` → 해당 서브시스템만 다시 지시서 생성·작성(4~6 반복).
+   - 수정 요청이면 아래 3절(수정사항 반영) 절차.
+7. **승인 처리**: `swd confirm --stage <단계> [--except <거절한 ID>]` → `swd history add --stage <단계> --content "<단계> 산출물 작성(검토 완료)"` → `swd build --stage <단계>`.
+
+단계별 산출물(자동 파생 포함):
+
+| 단계 | 서브에이전트 작성 | 프로그램 자동 생성 |
+|---|---|---|
+| 분석 | R1, R2, (CC) / SYSTEM: (GL) | R3 요구사항 추적표 |
+| 설계 | D1, D8, D9, D2, D3, D4, D11, D10, D7 / SYSTEM: D5, D6, D12 | R3 갱신, 모든 다이어그램·와이어프레임 |
+| 구현 | I1(프로그램 목록·연결) | I2 뼈대(←D11), I3 목록+DDL(←D9), R3 갱신 |
+| 시험 | T6, T3 / SYSTEM: T4, T5 | T1(←D10), T2(←D7), T7(←T6) 뼈대 |
+
+결과서(I2·T1·T2·T7)의 시험결과 칸은 사용자가 실제 결과를 줄 때만 채운다(없으면 `(정보 부족)`).
+
+## 2. 사용자가 "산출물 작성해줘"만 말했을 때
+
+현재 폴더에서 산출물 폴더를 찾고(`swd status`), 이미 진행된 단계 다음부터 이어간다. 새 입력 파일이 있으면 `swd ingest` 후
+새 자료가 기존 모델에 주는 영향(추가·변경·충돌)을 먼저 보고한다.
+
+## 3. 수정사항·추가 회의록 반영 (확인 요청 후 반영)
+
+1. `swd ingest` → 새 입력(`CR-…`, `MTG-…`)을 읽는다.
+2. 영향 분석: 관련 요구사항 → 유스케이스 → 화면·클래스·컴포넌트·테이블·시험 순으로 영향받는 ID를 모델에서 찾는다
+   (`grep`으로 ID 검색, R3 추적 규칙 활용).
+3. 충돌 판정: 확인된(confirmed) 항목·회의 결정(fact)과 반대되는 변경, 이미 승인된 수치의 변경 → 충돌로 표시.
+4. AskUserQuestion으로 변경안 목록(무엇을 → 어떻게, 영향 산출물)과 충돌을 보여주고 **반영 여부를 확인**한다.
+5. 승인된 변경만 반영: 작은 변경은 마스터가 YAML을 직접 수정, 큰 변경은 영향 서브시스템에 서브에이전트를 병렬로 띄운다
+   (`swd prompt --stage <단계> --sub <ID>` 지시서 + "CR-001의 1·3번 반영" 같은 추가 지시).
+   바뀐 항목의 `_meta.sources`에 CR 입력ID를 추가하고, AI가 새로 추정한 값은 `ai_fields`에 넣는다.
+6. `swd validate` → 영향 단계 `swd build` → 영향받은 산출물마다 `swd history add --docs SA:R1,SA:D2 --content "CR-001 반영: …"`.
+
+## 4. 절대 규칙
+
+- 문서를 직접 만들거나 편집하지 않는다. 항상 모델 YAML → `swd build`.
+- `(정보 부족)`, `(미정)` 같은 표시 문자열을 YAML 값으로 쓰지 않는다. 근거 없는 이름·수치·일정·제품명을 만들지 않는다.
+- 한 번 부여한 ID는 바꾸지 않는다. R3(추적표)·I3(DDL)·결과서 뼈대는 프로그램이 만든다.
+- 게이트에서 사용자의 확인 없이 다음 단계로 넘어가지 않는다. 사용자 확인 없이 `swd confirm`을 실행하지 않는다.
+- 원본 `input/` 대신 정규화본 `.work/inputs/`를 읽는다(개인정보 마스킹·줄 번호 고정).

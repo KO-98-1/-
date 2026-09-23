@@ -1,0 +1,120 @@
+code: D9
+name: 데이터베이스 설계서
+doc: DBD
+phase: design
+scope: subsystem
+system_part: true         # model/SYSTEM/D9.yaml 에 databases(공용), model/<SUB>/D9.yaml 에 tables
+orientation: portrait
+purpose: 최종적으로 설계된 테이블과 인덱스를 데이터베이스 공간에 맵핑시키고 저장공간 등의 물리 모델을 기술한다.
+method: 부서에서 운영하는 데이터베이스 목록을 작성하고, 데이터베이스의 물리적 상세내용을 작성한다.
+depends_on: [D8]
+entities:
+  databases:
+    id_type: DB
+    system_level: true
+    desc: "(SYSTEM/D9.yaml) 데이터베이스 1개 — 여러 서브시스템이 공용"
+    fields:
+      id: {label: 데이터베이스 ID, required: true, desc: "실제 물리적으로 구현하는 데이터베이스 ID를 부여하여 기입한다."}
+      name: {label: 데이터베이스 명칭, required: true, desc: "데이터베이스가 주로 관리하는 데이터를 대표하는 명칭을 기입한다."}
+      dept: {label: 주관부서, desc: "데이터베이스의 관리 책임을 가진 부서를 기입한다.", ask: "데이터베이스 {name}({id})의 관리 책임 부서는?"}
+      note: {label: 비고, blank: silent}
+      storage_group: {label: Storage Group, desc: "데이터베이스내의 객체에서 사용할 Default Storage Group명을 기술한다."}
+      bufferpool: {label: Bufferpool, desc: "데이터베이스내의 테이블 스페이스에서 사용할 Default Bufferpool명을 기술한다."}
+      index_bp: {label: 인덱스 BP, desc: "데이터베이스내의 Index에서 사용할 Default Bufferpool명을 기술한다."}
+  tables:
+    id_type: TB
+    desc: 물리 테이블 1개 (서브시스템 D9.yaml)
+    fields:
+      id: {label: 테이블 ID, required: true, desc: "테이블의 식별자(물리명)를 기술한다. 형식 TB_{서브시스템}_{영문명}"}
+      name: {label: 테이블명, required: true, desc: "테이블 명칭(한글 논리명)을 기술한다."}
+      entity_id: {label: 관련 엔티티 ID, ref: ENT, desc: "엔티티 관계 모형 기술서의 엔티티 ID"}
+      usecase_ids: {label: 관련 유스케이스 ID, type: ids, ref: UC, blank: silent, desc: "추적표 보강용(선택)"}
+      database_id: {label: 데이터베이스 ID, ref: DB, required: true}
+      tablespace: {label: TS명, desc: "테이블 스페이스의 명칭을 기술한다."}
+      ts_size: {label: TS 용량, desc: "테이블 스페이스의 할당용량을 표시한다."}
+      trigger: {label: 트리거 구성, desc: "테이블에 트리거가 구성되어 있을 경우 트리거 로직을 기술한다(없으면 '없음')."}
+      description: {label: 테이블 설명, desc: "테이블의 목적 및 역할을 간략하게 기술한다."}
+      initial_rows: {label: 초기건수, desc: "테이블이 최초 생성될 때 보유한 데이터의 건수를 기재한다.", ask: "테이블 {name}({id})의 초기 데이터 건수와 일 증가량은?"}
+      daily_growth: {label: 증가량(일), desc: "일정주기별 데이터 발생건수를 기술한다."}
+      retention: {label: 보관주기, desc: "해당 테이블내 데이터의 보관주기를 기술한다."}
+      max_rows: {label: 최대건수, desc: "테이블이 관리되는 기간(보관주기)내에 발생이 예상되는 최대 데이터 건수를 기술한다."}
+      size: {label: 용량, desc: "데이터 보관 최대 건수와 데이터의 길이를 고려하여 산정한 데이터 용량을 기술한다."}
+      note: {label: 비고, blank: silent}
+      columns:
+        label: 컬럼
+        type: object-list
+        fields:
+          name: {label: 컬럼명, desc: "테이블 컬럼의 내용과 특성을 인식할 수 있는 명칭(한글)을 기술한다."}
+          column_id: {label: 컬럼ID, desc: "테이블 컬럼 ID(물리명)를 기술한다."}
+          type_length: {label: 타입 및 길이, desc: "컬럼의 타입과 최대 허용 길이를 기술한다(예: VARCHAR(20), NUMERIC(10,2), DATE)."}
+          not_null: {label: Not Null, enum: [Y, N]}
+          pk: {label: PK, enum: [Y, N]}
+          fk: {label: FK, enum: [Y, N]}
+          idx: {label: IDX, enum: [Y, N]}
+          default: {label: 기본값, blank: silent}
+          constraint: {label: 제약조건, blank: silent}
+          fk_ref: {label: FK 참조(테이블.컬럼), blank: silent, desc: "DDL 생성용(예: TB_SA_CUSTOMER.CUST_ID)"}
+      indexes:
+        label: 인덱스
+        type: object-list
+        blank: silent
+        fields:
+          id: {label: 인덱스 ID, desc: "인덱스 식별자(예: PK_SA_ORDER, IX_SA_ORDER_01)"}
+          columns: {label: 컬럼ID 목록, type: list}
+          unique: {label: 유일 여부, enum: [Y, N]}
+          size: {label: 인덱스 용량, desc: "인덱스의 저장공간의 크기를 산정하여 기술한다."}
+layout:
+  - section: 1. 데이터베이스 목록
+  - table:
+      source: $databases_used
+      columns:
+        - {label: 데이터베이스 ID, key: id, w: 6, align: center}
+        - {label: 데이터베이스 명칭, key: name, w: 8}
+        - {label: 주관부서, key: dept, w: 6}
+        - {label: 비고, key: note, w: 8}
+  - section: 2. 데이터베이스 정의
+  - cards:
+      source: $databases_used
+      rows:
+        - kv: [{label: 데이터베이스 ID, key: id}, {label: 데이터베이스명, key: name}, {label: Storage Group, key: storage_group}]
+        - kv: [{label: Bufferpool, key: bufferpool}, {label: 인덱스 BP, key: index_bp}]
+        - subtable:
+            source: $db_tables
+            columns:
+              - {label: TS ID, key: tablespace, w: 3}
+              - {label: TS 용량, key: ts_size, w: 2, align: center}
+              - {label: 테이블 ID, key: id, w: 4}
+              - {label: 테이블 명, key: name, w: 4}
+              - {label: 인덱스 ID, key: index_ids, w: 4}
+              - {label: 인덱스 용량, key: index_sizes, w: 3, align: center}
+              - {label: 비고, key: note, w: 2}
+  - section: 3. 테이블 명세
+  - cards:
+      source: tables
+      sort: id
+      rows:
+        - kv: [{label: 테이블ID, key: id}, {label: 테이블명, key: name}]
+        - kv: [{label: 데이터베이스명, lookup: database_id, field: name}, {label: TS명, key: tablespace}]
+        - kv: [{label: 트리거 구성, key: trigger}]
+        - kv: [{label: 테이블 설명, key: description}]
+        - subtable:
+            columns:
+              - {label: 초기건수, key: initial_rows, w: 3, align: center}
+              - {label: 증가량(일), key: daily_growth, w: 3, align: center}
+              - {label: 보관주기, key: retention, w: 3, align: center}
+              - {label: 최대건수, key: max_rows, w: 3, align: center}
+              - {label: 용량, key: size, w: 3, align: center}
+              - {label: 비고, key: note, w: 4}
+            self_row: true
+        - subtable:
+            source: columns
+            columns:
+              - {label: 컬럼명, key: name, w: 4}
+              - {label: 컬럼ID, key: column_id, w: 4}
+              - {label: 타입 및 길이, key: type_length, w: 4, align: center}
+              - {label: Not Null, key: not_null, w: 2, align: center}
+              - {label: PK, key: pk, w: 1.5, align: center}
+              - {label: FK, key: fk, w: 1.5, align: center}
+              - {label: IDX, key: idx, w: 2, align: center}
+              - {label: 기본값, key: default, w: 2}
+              - {label: 제약조건, key: constraint, w: 3}

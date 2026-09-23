@@ -1,0 +1,14 @@
+code: T7
+name: 인수시험 결과서
+doc: ATR
+phase: test
+scope: subsystem
+orientation: landscape
+extends: T6
+derived_from: T6
+results: true
+purpose: 총괄시험 계획서와 인수시험 시나리오에 따라서 수행한 시험 결과를 기술한다.
+method: >-
+  사용자 요구사항의 시스템 반영여부를 시험하고 시험결과를 작성한다. 인수시험 시나리오의 시험 시나리오·케이스를
+  현행화하여 시험을 수행 후 시험결과를 기록한다.
+depends_on: [T6]

@@ -1,0 +1,89 @@
+code: D4
+name: 인터페이스 설계서
+title: 인터페이스 정의서       # 가이드 양식 제목 표기(목차·산출물 목록은 '인터페이스 설계서')
+doc: IFS
+phase: design
+scope: subsystem
+orientation: landscape
+purpose: 시스템의 내·외부 인터페이스를 식별하고 인터페이스의 명세를 기술한다.
+method: >-
+  식별된 인터페이스를 송신측과 수신측으로 구분하여 기술하고 송·수신간의 인터페이스 방식을 기술하며,
+  데이터 송신 시스템과 수신 시스템간의 데이터 저장소와 속성 등의 상세 내역을 기술한다.
+  (이 서브시스템이 송신측이거나 수신측인 연계를 기술한다.)
+depends_on: [R1, D8]
+entities:
+  interfaces:
+    id_type: IF
+    desc: 연계 인터페이스 1건(송신 단위)
+    fields:
+      id: {label: 인터페이스 번호, required: true, desc: "송신 시스템의 인터페이스 일련번호를 기입한다."}
+      name: {label: 인터페이스명, blank: silent, desc: "식별용 이름(양식 외 참고 항목)"}
+      send_seq: {label: 송신 일련번호, desc: "한 개 송신단위에서 여러 개의 서브시스템으로 동시에 전송되는 경우에는 순차적으로 기술한다."}
+      send_system: {label: 송신시스템명, required: true, desc: "송신 시스템이름을 기술한다."}
+      send_program_id: {label: 송신 프로그램 ID, desc: "송신에 해당하는 프로그램 ID를 기입한다."}
+      process_type: {label: 처리형태, enum: [Online, Batch, Real-time, Near real-time, 파일], desc: "인터페이스를 처리하는 형태를 기술한다. Batch / Online 등"}
+      method: {label: 인터페이스 방식, desc: "통신 프로토콜 및 통신 기술 방식을 기술한다(예: REST/HTTPS, SFTP, MQ, DB Link, EAI)."}
+      frequency: {label: 발생빈도, desc: "인터페이스 발생빈도를 '회수/주기' 형식으로 기술한다(예: 100회/일, 1회/월, 수시).", ask: "인터페이스 {id}의 발생 빈도(회수/주기)는?"}
+      counterpart_contact: {label: 상대 담당자 확인, desc: "수신 시스템의 업무담당자명을 기술한다.", ask: "인터페이스 {id}의 상대 시스템 담당자는 누구인가요?"}
+      recv_program_id: {label: 수신 프로그램 ID, desc: "수신과 관련된 프로그램 ID를 기입한다."}
+      recv_system: {label: 수신시스템명, required: true, desc: "인터페이스 수신 시스템명을 기술한다."}
+      recv_seq: {label: 수신 일련번호, desc: "수신 시스템의 동일 인터페이스가 여러 시스템에서 동시에 수신을 받는 경우에 순차적으로 번호를 부여한다."}
+      recv_no: {label: 수신번호, desc: "수신측 인터페이스 번호"}
+      requirement_ids: {label: 관련 요구사항 ID, type: ids, ref: REQ, desc: "해당 인터페이스와 관련된 사용자 요구사항 정의서의 요구사항 ID를 기입한다."}
+      note: {label: 비고, blank: silent, desc: "특이사항 등을 기입한다."}
+      data_items:
+        label: 인터페이스 명세(데이터 항목)
+        type: object-list
+        ask: "인터페이스 {id}로 주고받는 데이터 항목(필드·타입·길이)은?"
+        fields:
+          send_store: {label: 송신 데이터 저장소명, desc: "인터페이스 송신과 관련된 엔티티 또는 파일명을 기술한다."}
+          send_attr: {label: 송신 속성명, desc: "관련 엔티티의 속성명 또는 파일의 항목명을 기술한다."}
+          send_type: {label: 송신 데이터 타입, desc: "엔티티 속성 또는 항목 타입을 기술한다."}
+          send_length: {label: 송신 길이, desc: "데이터의 길이를 기술한다."}
+          recv_store: {label: 수신 데이터 저장소명}
+          recv_attr: {label: 수신 속성명}
+          recv_type: {label: 수신 데이터 타입}
+          recv_length: {label: 수신 길이}
+layout:
+  - section: 1. 인터페이스 목록
+  - table:
+      source: interfaces
+      sort: id
+      header:
+        - [{label: 송신, span: 4}, {label: 전달, span: 3}, {label: 수신, span: 5}, {rowspan: 2}, {rowspan: 2}]
+      columns:
+        - {label: 인터페이스 번호, key: id, w: 8, align: center}
+        - {label: 일련번호, key: send_seq, w: 4, align: center}
+        - {label: 송신시스템명, key: send_system, w: 8}
+        - {label: 프로그램 ID, key: send_program_id, w: 7, align: center}
+        - {label: 처리형태, key: process_type, w: 5, align: center}
+        - {label: 인터페이스 방식, key: method, w: 7, align: center}
+        - {label: 발생빈도, key: frequency, w: 5, align: center}
+        - {label: 상대 담당자 확인, key: counterpart_contact, w: 6, align: center}
+        - {label: 프로그램 ID, key: recv_program_id, w: 7, align: center}
+        - {label: 수신시스템명, key: recv_system, w: 8}
+        - {label: 일련번호, key: recv_seq, w: 4, align: center}
+        - {label: 수신번호, key: recv_no, w: 5, align: center}
+        - {label: 관련 요구사항 ID, key: requirement_ids, w: 7, align: center}
+        - {label: 비고, key: note, w: 5}
+  - section: 2. 인터페이스 명세
+  - table:
+      source: interfaces
+      sort: id
+      flatten: data_items
+      header:
+        - [{rowspan: 2}, {label: 데이터송신시스템, span: 5}, {rowspan: 2}, {label: 데이터수신시스템, span: 5}, {rowspan: 2}]
+      columns:
+        - {label: 인터페이스 번호, key: parent.id, w: 8, align: center, merge: true}
+        - {label: 시스템명, key: parent.send_system, w: 7, merge: true}
+        - {label: 데이터 저장소명, key: item.send_store, w: 8}
+        - {label: 속성명, key: item.send_attr, w: 8}
+        - {label: 데이터 타입, key: item.send_type, w: 5, align: center}
+        - {label: 길이, key: item.send_length, w: 4, align: center}
+        - {label: 송신 프로그램 ID, key: parent.send_program_id, w: 7, align: center, merge: true}
+        - {label: 데이터 저장소명, key: item.recv_store, w: 8}
+        - {label: 속성명, key: item.recv_attr, w: 8}
+        - {label: 데이터 타입, key: item.recv_type, w: 5, align: center}
+        - {label: 길이, key: item.recv_length, w: 4, align: center}
+        - {label: 시스템명, key: parent.recv_system, w: 7, merge: true}
+        - {label: 수신 프로그램 ID, key: parent.recv_program_id, w: 7, align: center, merge: true}

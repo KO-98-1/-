@@ -1,0 +1,100 @@
+code: R2
+name: 유스케이스 명세서
+doc: UC
+phase: analysis
+scope: subsystem
+orientation: portrait
+purpose: >-
+  시스템의 요구사항에 대하여 액터와 시스템 활동 및 상호간의 활동에 대하여 순서화된 시나리오를 상세하게
+  기술하고, 유스케이스의 이름, 액터, 그들 간의 연관관계를 보여주는 시스템 환경을 다이어그램으로도 표현한다.
+method: >-
+  유스케이스는 시나리오를 구체적인 언어표현으로 기술하고, 유스케이스 다이어그램은 그림으로 작성한다.
+depends_on: [R1]
+entities:
+  ucds:
+    id_type: UCD
+    desc: 유스케이스 다이어그램(서브시스템별로 작성). 그림은 usecases/actors 로부터 자동 생성된다.
+    fields:
+      id: {label: UCD ID, required: true, desc: "유스케이스 다이어그램별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: UCD 명, required: true, desc: "유스케이스 다이어그램의 이름을 기입한다."}
+      usecase_ids: {label: 포함 유스케이스, type: ids, ref: UC, desc: "비우면 ucd_id가 이 UCD인 유스케이스 전체"}
+      mermaid: {label: 다이어그램 직접 지정, type: mermaid, blank: silent, desc: "자동 생성 대신 쓸 Mermaid 코드(특수한 경우에만)"}
+  actors:
+    id_type: ACT
+    desc: 액터 목록(서브시스템별로 작성)
+    fields:
+      id: {label: 액터 ID, required: true, desc: "액터별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 액터명, required: true, desc: "액터의 이름을 기입한다."}
+      type: {label: 액터유형, enum: [주요, 보조, 숨은], desc: "주요 액터: 서비스를 사용하여 사용자의 목적을 수행하는 액터 / 보조 액터: 서비스를 지원하는 액터(주로 컴퓨터 시스템이지만 조직이나 사람일 수도 있음, 예: CD기) / 숨은 액터: 주요·보조는 아니지만 유스케이스의 행위에서 이해관계를 가짐(예: 세무서)"}
+      kind: {label: 액터 형태, enum: [사람, 시스템, 조직], blank: silent, desc: "다이어그램 아이콘용(사람/시스템/조직)"}
+      description: {label: 액터설명, desc: "액터에 대한 설명을 간략히 기입한다."}
+  usecases:
+    id_type: UC
+    desc: 유스케이스 1건. 목록(3장)과 기술서(5장)에 함께 사용된다.
+    fields:
+      id: {label: 유스케이스 ID, required: true, desc: "유스케이스별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 유스케이스명, required: true, desc: "유스케이스의 이름을 기입한다."}
+      description: {label: 유스케이스 설명, desc: "유스케이스에 대한 설명을 간략히 기입한다."}
+      actor_ids: {label: 관련액터 ID, type: ids, ref: ACT, desc: "관련된 액터 ID를 기입한다."}
+      ucd_id: {label: 관련 UCD ID, ref: UCD, desc: "관련된 UCD ID를 기입한다."}
+      requirement_ids: {label: 관련 요구사항 ID, type: ids, ref: REQ, required: true, desc: "사용자 요구사항 정의서의 관련된 요구사항 ID를 기입한다."}
+      includes: {label: 포함(include) 유스케이스, type: ids, ref: UC, blank: silent, desc: "다이어그램의 «include» 관계"}
+      extends: {label: 확장(extend) 유스케이스, type: ids, ref: UC, blank: silent, desc: "다이어그램의 «extend» 관계(이 유스케이스가 확장하는 대상)"}
+      primary_actors: {label: 주요 액터, type: list, desc: "목적을 수행하는 시스템의 서비스를 호출하는 주된 액터를 기술한다."}
+      stakeholders: {label: 이해관계자와 관심사항, type: list, desc: "유스케이스 내에 있어야 하는 사람, 조직, 컴퓨터 시스템들과 이들이 시스템에 대하여 요구하는 사항을 기술한다.", ask: "'{name}'({id})에 관련된 이해관계자와 그들이 원하는 점은 무엇인가요?"}
+      preconditions: {label: 전제조건, type: list, desc: "시나리오가 유스케이스에서 시작되기 전에 항상 참이어야 하는 조건을 기술한다.", ask: "'{name}'({id}) 시작 전에 충족되어야 하는 조건(로그인, 권한 등)은?"}
+      postconditions: {label: 종료조건, type: list, desc: "유스케이스의 주요 성공 시나리오나 다른 대안 경로의 성공적인 완료 후에 참이어야 하는 조건을 기술한다."}
+      main_flow: {label: 기본 시나리오, type: steps, desc: "이해관계자의 관심사항을 충족시키는 일반적인 성공 경로를 순서대로 기술한다(액터 행동 ↔ 시스템 응답)."}
+      alt_flows: {label: 대안 시나리오, type: flows, desc: "성공과 실패의 경우에 관한 모든 시나리오나 분기를 기술한다. [{name: '가. 취소 신청', steps: [...]}]", ask: "'{name}'({id})에서 예외·오류·분기 상황(입력 오류, 권한 없음 등)은 어떻게 처리하나요?"}
+      impl_considerations: {label: 구현 시 고려 사항, type: list, desc: "비기능적 요구사항, 품질 속성, 설계 제약사항들이 유스케이스와 관련되면 기술한다. 구현 기술 변화, 데이터구조 변화 가능성 등도 기재한다."}
+      frequency: {label: 발생 빈도, desc: "유스케이스가 발생하는 빈도 유형을 기술한다.", ask: "'{name}'({id})의 발생 빈도는?(예: 일 1회 이상, 월 1회)"}
+layout:
+  - section: 1. 서브시스템 목록
+  - table:
+      source: $subsystems
+      columns:
+        - {label: 서브시스템 ID, key: id, w: 3, align: center}
+        - {label: 서브시스템명, key: name, w: 4}
+        - {label: 서브시스템 설명, key: description, w: 10}
+  - section: 2. 유스케이스 다이어그램(UCD)
+  - cards:
+      source: ucds
+      rows:
+        - kv: [{label: UCD ID, key: id}, {label: UCD 명, key: name}]
+        - kv: [{label: 관련 서브시스템 ID, ctx: sub.id}, {label: 관련 서브시스템명, ctx: sub.name}]
+        - diagram: {kind: ucd, key: id}
+  - section: 3. 유스케이스 목록
+  - table:
+      source: usecases
+      sort: id
+      columns:
+        - {label: 유스케이스 ID, key: id, w: 9, align: center}
+        - {label: 유스케이스명, key: name, w: 10}
+        - {label: 유스케이스 설명, key: description, w: 20}
+        - {label: 관련액터 ID, key: actor_ids, w: 9, align: center}
+        - {label: 관련 UCD ID, key: ucd_id, w: 8, align: center}
+        - {label: 관련 요구사항 ID, key: requirement_ids, w: 9, align: center}
+  - section: 4. 액터 목록
+  - table:
+      source: actors
+      sort: id
+      columns:
+        - {label: 액터 ID, key: id, w: 8, align: center}
+        - {label: 액터명, key: name, w: 10}
+        - {label: 액터유형, key: type, w: 6, align: center}
+        - {label: 액터설명, key: description, w: 26}
+  - note: "※ 액터유형 — 주요: 서비스를 사용하여 목적을 수행 / 보조: 서비스를 지원 / 숨은: 행위에 이해관계를 가짐"
+  - section: 5. 유스케이스 기술서
+  - cards:
+      source: usecases
+      sort: id
+      rows:
+        - kv: [{label: 유스케이스ID, key: id}, {label: 유스케이스명, key: name}]
+        - label_text: {label: 1. 주요 액터, key: primary_actors, format: bullets}
+        - label_text: {label: 2. 이해관계자와 관심사항, key: stakeholders, format: bullets}
+        - label_text: {label: 3. 전제조건, key: preconditions, format: bullets}
+        - label_text: {label: 4. 종료조건, key: postconditions, format: bullets}
+        - label_text: {label: 5. 기본 시나리오, key: main_flow, format: steps}
+        - label_text: {label: 6. 대안 시나리오, key: alt_flows, format: flows}
+        - label_text: {label: 7. 구현 시 고려 사항, key: impl_considerations, format: bullets}
+        - label_text: {label: 8. 발생 빈도, key: frequency, format: bullets}

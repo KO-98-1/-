@@ -1,0 +1,91 @@
+code: D2
+name: 사용자 인터페이스 설계서
+doc: UI
+phase: design
+scope: subsystem
+orientation: portrait
+purpose: 시스템이 제공하는 사용자 인터페이스의 전체 구조와 메뉴 형식, 화면 목록과 화면의 상세 설계 내역을 기술한다.
+method: >-
+  전체 시스템에 대한 사용자 인터페이스의 구조를 사용자에게 제공하는 메뉴 형식으로 기술하고, 화면 및 출력으로
+  구분하여 목록을 작성하며, 화면의 상세 설계의 내용을 화면별로 기술한다.
+depends_on: [R2, D1]
+entities:
+  ui_structure:
+    type: tree
+    desc: >-
+      사용자 인터페이스 구조도(메뉴 트리). 최상위레벨에서 Top-down으로 작성한다. 비워 두면 화면의 menu_path로부터
+      자동 구성된다. 형식: [{name: 메뉴명, screen_id: (선택), children: [...]}]
+  screens:
+    id_type: SCR
+    desc: 화면 1개. 목록(2.1)과 화면 상세 설계(3장)에 함께 사용된다.
+    fields:
+      id: {label: 화면 ID, required: true, desc: "화면별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 화면명, required: true, desc: "화면을 식별할 수 있는 명칭을 기입한다."}
+      usecase_id: {label: 관련 유스케이스 ID, ref: UC, required: true, desc: "관련되는 유스케이스 ID를 기입한다."}
+      sequence_id: {label: 관련 시퀀스도 ID, ref: SD, desc: "클래스 설계서의 관련 시퀀스도 ID를 기입한다."}
+      type: {label: 화면유형, enum: [입력, 조회, 갱신, 삭제, 입력/조회, 조회/갱신, 팝업, 대시보드], desc: "화면 데이터 처리 방식에 따라 입력, 조회, 갱신, 삭제 등으로 표시한다."}
+      menu_path: {label: 메뉴경로, desc: "메뉴 경로 파악을 위하여 메뉴의 깊이를 표시한다(예: 판매관리 > 주문관리 > 주문 등록)."}
+      overview: {label: 화면개요, desc: "화면의 목적 및 기능에 대하여 간략하게 기술한다."}
+      items:
+        label: 입출력 항목
+        type: object-list
+        ask: "화면 '{name}'({id})에 입력·표시되는 항목(필드)은 무엇인가요?"
+        fields:
+          name: {label: 항목명, desc: "화면의 입출력 항목을 식별할 수 있는 명칭을 기입한다."}
+          control: {label: 컨트롤명, desc: "화면을 구현하는 컨트롤의 명칭을 기술한다(예: txtOrderNo)."}
+          type_length: {label: 타입 및 길이, desc: "항목의 데이터 타입과 최대 길이를 기술한다(예: Char(8), Number(5))."}
+          attr: {label: 속성, desc: "Input(I), Output(O), ReadOnly(RO), Editable(E), Hidden(H) 중 선택하여 두문만 기술(복수는 '/'로, 예: I/E)."}
+          validation: {label: Validation Check, desc: "항목의 입력 오류를 체크할 수 있는 입력 범위를 기술한다(필수항목, 범위 등)."}
+      buttons: {label: 버튼, type: list, blank: silent, desc: "와이어프레임용 버튼 목록(예: [조회, 저장, 취소])"}
+      processing: {label: 처리 내용, type: list, desc: "화면이 처리하는 업무 내용을 기술하며 관련 시퀀스도 ID를 기재한다."}
+      tech_considerations: {label: 기술적 고려사항, type: list, desc: "화면을 구현하기 위하여 필요한 기술적 요소에 대한 고려사항을 기술한다."}
+  outputs:
+    id_type: RPT
+    desc: 출력물(보고서·인쇄물) 1개
+    fields:
+      id: {label: 출력물 ID, required: true, desc: "출력물이 있을 경우 출력물별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 출력물명, required: true, desc: "출력물을 식별할 수 있는 명칭을 기입한다."}
+      usecase_id: {label: 관련 유스케이스 ID, ref: UC}
+layout:
+  - section: 1. 사용자 인터페이스 구조도
+  - diagram: {kind: uitree, ctx: sub.id, caption: 사용자 인터페이스 구조도}
+  - section: 2. 사용자 인터페이스 목록
+  - subsection: 2.1 화면
+  - table:
+      source: screens
+      sort: id
+      columns:
+        - {label: 화면 ID, key: id, w: 8, align: center}
+        - {label: 화면명, key: name, w: 14}
+        - {label: 관련 유스케이스 ID, key: usecase_id, w: 8, align: center}
+  - subsection: 2.2 출력물
+  - table:
+      source: outputs
+      sort: id
+      columns:
+        - {label: 출력물 ID, key: id, w: 8, align: center}
+        - {label: 출력물명, key: name, w: 14}
+        - {label: 관련 유스케이스 ID, key: usecase_id, w: 8, align: center}
+  - section: 3. 화면 상세 설계
+  - cards:
+      source: screens
+      sort: id
+      rows:
+        - kv: [{label: 화면ID, key: id}, {label: 화면명, key: name}]
+        - kv: [{label: 관련 유스케이스 ID, key: usecase_id}]
+        - kv: [{label: 관련 시퀀스도 ID, key: sequence_id}]
+        - kv: [{label: 화면유형, key: type}, {label: 메뉴경로, key: menu_path}]
+        - kv: [{label: 화면개요, key: overview}]
+        - diagram: {kind: wireframe, key: id, caption_suffix: "화면 레이아웃(자동 생성 와이어프레임, 참고용)"}
+        - label: 입출력 항목
+        - subtable:
+            source: items
+            columns:
+              - {label: 항목명, key: name, w: 5}
+              - {label: 컨트롤명, key: control, w: 5}
+              - {label: 타입 및 길이, key: type_length, w: 4, align: center}
+              - {label: 속성, key: attr, w: 3, align: center}
+              - {label: Validation Check, key: validation, w: 7}
+        - legend: "*속성 I:Input, O:Output, RO:ReadOnly, E:Editable, H:Hidden"
+        - label_text: {label: 처리 내용, key: processing, format: bullets}
+        - label_text: {label: 기술적 고려사항, key: tech_considerations, format: bullets}

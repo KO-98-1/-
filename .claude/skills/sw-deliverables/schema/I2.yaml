@@ -1,0 +1,39 @@
+code: I2
+name: 단위시험 결과서
+doc: UTR
+phase: implementation
+scope: subsystem
+orientation: landscape
+extends: D11
+derived_from: D11         # 'swd derive --stage implementation' 이 D11을 복사해 뼈대를 만든다(결과 칸만 추가 입력)
+results: true
+purpose: 단위시험 케이스에 따라 수행한 단위시험의 수행 결과를 기술한다.
+method: >-
+  작성한 단위시험 케이스에 따라 시험을 수행하고 시험 결과를 기술하며 예상결과와 비교하여 단위시험의 판정 결과를
+  작성한다. 설계단계 산출물인 단위시험 케이스를 현행화하여 시험을 수행 후, 시험결과(수행일, 수행자, 결과,
+  결함내용, 결함조치완료여부)를 기록한다.
+depends_on: [D11]
+layout:
+  - cards:
+      source: unit_tests
+      sort: id
+      rows:
+        - kv: [{label: 단위시험ID, key: id}]
+        - kv: [{label: 설명, key: description}]
+        - kv: [{label: 관련 컴포넌트 ID, key: component_id}, {label: 관련 프로그램 ID, key: program_id}]
+        - subtable:
+            source: cases
+            header:
+              - [{rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {label: 시험결과, span: 5}]
+            columns:
+              - {label: 케이스ID, key: id, w: 2.5, align: center}
+              - {label: 케이스명, key: name, w: 2.5}
+              - {label: 작업권한, key: permission, w: 1.5, align: center}
+              - {label: 시험데이터, key: test_data, w: 2.5}
+              - {label: 시험항목 및 처리절차, key: procedure, w: 4, format: steps}
+              - {label: 예상결과 및 검증방법, key: expected, w: 4, format: bullets}
+              - {label: 수행자, key: result.performer, w: 1.5, result: true, align: center}
+              - {label: 수행일, key: result.date, w: 1.5, result: true, align: center}
+              - {label: 결과, key: result.outcome, w: 1.2, result: true, align: center}
+              - {label: 결함내용, key: result.defect, w: 1.8, result: true}
+              - {label: 결함조치여부, key: result.defect_fixed, w: 1.5, result: true, align: center}

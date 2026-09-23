@@ -1,0 +1,129 @@
+code: D1
+name: 클래스 설계서
+doc: CLS
+phase: design
+scope: subsystem
+orientation: portrait
+purpose: 소프트웨어 관점이나 설계 관점에서의 클래스 모형을 작성한다.
+method: >-
+  설계 클래스를 도출하기 위하여 우선 유스케이스별로 시퀀스도를 작성하며, 여기에서 도출된 객체 및 클래스를
+  연관관계를 이용하여 유스케이스별로 클래스도를 작성한다. 설계 클래스도에서는 클래스명, 속성 및 오퍼레이션을
+  명확하고 구체적으로 표현하여야 하고 각각의 클래스는 상세한 명세를 기술한다.
+depends_on: [R2]
+entities:
+  sequences:
+    id_type: SD
+    desc: 시퀀스도(유스케이스별로 작성). 그림은 messages로부터 자동 생성된다.
+    fields:
+      id: {label: 시퀀스도 ID, required: true, desc: "시퀀스도별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 시퀀스도명, required: true, desc: "시퀀스도의 이름을 부여하여 기입한다."}
+      usecase_id: {label: 관련 유스케이스 ID, ref: UC, required: true, desc: "본 산출물이 관련되는 유스케이스 명세서의 유스케이스 ID를 기입한다."}
+      actors: {label: 주요 액터, type: ids, ref: ACT, desc: "본 산출물과 관련되는 액터들을 기입한다(액터 ID)."}
+      classes: {label: 주요 클래스, type: ids, ref: CL, desc: "본 산출물과 관련되는 클래스들을 기입한다(설계 클래스 ID)."}
+      messages:
+        label: 메시지
+        type: object-list
+        desc: "시간 순서대로의 메시지. from/to 에는 액터 ID 또는 설계 클래스 ID를 쓴다."
+        fields:
+          from: {label: 보내는 쪽}
+          to: {label: 받는 쪽}
+          message: {label: 메시지(오퍼레이션)}
+          kind: {label: 유형, enum: [sync, async, reply, self]}
+          note: {label: 비고}
+      mermaid: {label: 다이어그램 직접 지정, type: mermaid, blank: silent}
+  class_diagrams:
+    id_type: CD
+    desc: 설계 클래스도(유스케이스별로 작성). 그림은 classes/relations로부터 자동 생성된다.
+    fields:
+      id: {label: 설계 클래스도 ID, required: true, desc: "설계 클래스도별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 설계 클래스도명, required: true, desc: "설계 클래스도의 이름을 부여하여 기입한다."}
+      usecase_id: {label: 관련 유스케이스 ID, ref: UC, required: true, desc: "관련되는 유스케이스 ID를 기입한다."}
+      class_ids: {label: 포함 클래스, type: ids, ref: CL}
+      relations:
+        label: 관계
+        type: object-list
+        fields:
+          from: {label: 출발 클래스 ID}
+          to: {label: 도착 클래스 ID}
+          type: {label: 관계 유형, enum: [association, dependency, inheritance, realization, aggregation, composition]}
+          label: {label: 관계명}
+          from_mult: {label: 출발 다중성}
+          to_mult: {label: 도착 다중성}
+      mermaid: {label: 다이어그램 직접 지정, type: mermaid, blank: silent}
+  classes:
+    id_type: CL
+    desc: 설계 클래스 1개. 목록(1장)과 정의(4장)에 함께 사용된다.
+    fields:
+      id: {label: 설계 클래스 ID, required: true, desc: "설계 클래스별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 설계 클래스명, required: true, desc: "설계 클래스의 이름(구현 클래스명 권장)을 부여하여 기입한다."}
+      stereotype: {label: 스테레오타입, enum: [boundary, control, entity, service, dao, dto, interface, util], blank: silent}
+      usecase_ids: {label: 관련 유스케이스 ID, type: ids, ref: UC, required: true, desc: "관련되는 유스케이스 ID를 기입한다."}
+      description: {label: 설명, blank: silent}
+      attributes:
+        label: 속성
+        type: object-list
+        fields:
+          name: {label: 속성명, desc: "속성의 정확한 명칭을 기입한다."}
+          visibility: {label: 가시성, enum: [public, private, protected, package], desc: "속성의 가시성의 유형을 기입한다."}
+          type: {label: 타입, desc: "속성의 타입을 기입한다."}
+          default: {label: 기본값, blank: silent, desc: "속성이 기본값을 가질 경우 그 값을 기술한다."}
+          description: {label: 설명, desc: "속성의 의미와 역할을 기술한다."}
+      operations:
+        label: 오퍼레이션
+        type: object-list
+        fields:
+          name: {label: 오퍼레이션명, desc: "오퍼레이션의 정확한 명칭을 기입한다."}
+          visibility: {label: 가시성, enum: [public, private, protected, package]}
+          params: {label: 파라미터, blank: silent, desc: "오퍼레이션이 파라미터를 가질 경우 기입한다(예: orderDto : OrderDTO)."}
+          return_type: {label: 반환타입, blank: silent, desc: "오퍼레이션이 반환값을 제공할 경우 그 타입을 기술한다."}
+          description: {label: 설명, desc: "오퍼레이션의 의미와 역할을 기술한다."}
+layout:
+  - section: 1. 설계 클래스 목록
+  - table:
+      source: classes
+      sort: usecase_ids
+      columns:
+        - {label: 설계 클래스 ID, key: id, w: 8, align: center}
+        - {label: 설계 클래스명, key: name, w: 12}
+        - {label: 관련 유스케이스ID, key: usecase_ids, w: 8, align: center}
+  - section: 2. 시퀀스도
+  - cards:
+      source: sequences
+      sort: id
+      rows:
+        - kv: [{label: 시퀀스도 ID, key: id}, {label: 시퀀스도명, key: name}]
+        - kv: [{label: 관련 유스케이스 ID, key: usecase_id}]
+        - kv: [{label: 주요 액터, key: actors, lookup_names: true}, {label: 주요 클래스, key: classes, lookup_names: true}]
+        - diagram: {kind: seq, key: id}
+  - section: 3. 설계 클래스도
+  - cards:
+      source: class_diagrams
+      sort: id
+      rows:
+        - kv: [{label: 설계 클래스도 ID, key: id}, {label: 설계 클래스도명, key: name}]
+        - kv: [{label: 관련 유스케이스 ID, key: usecase_id}]
+        - diagram: {kind: class, key: id}
+  - section: 4. 설계 클래스 정의
+  - cards:
+      source: classes
+      sort: id
+      rows:
+        - kv: [{label: 설계 클래스 ID, key: id}, {label: 설계 클래스명, key: name}]
+        - label: 속성
+        - subtable:
+            source: attributes
+            columns:
+              - {label: 속성명, key: name, w: 5}
+              - {label: 가시성, key: visibility, w: 3, align: center}
+              - {label: 타입, key: type, w: 4}
+              - {label: 기본값, key: default, w: 3}
+              - {label: 설명, key: description, w: 9}
+        - label: 오퍼레이션
+        - subtable:
+            source: operations
+            columns:
+              - {label: 오퍼레이션명, key: name, w: 5}
+              - {label: 가시성, key: visibility, w: 3, align: center}
+              - {label: 파라미터, key: params, w: 5}
+              - {label: 반환타입, key: return_type, w: 3}
+              - {label: 설명, key: description, w: 8}

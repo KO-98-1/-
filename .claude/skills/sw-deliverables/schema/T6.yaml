@@ -1,0 +1,85 @@
+code: T6
+name: 인수시험 시나리오
+doc: ATS
+phase: test
+scope: subsystem
+orientation: landscape
+results: false
+purpose: >-
+  각 응용 프로그램의 단위 프로그램 내에서의 작업 흐름 연계, 단위 프로그램간의 상호 연동 및 대내외 인터페이스를
+  포함한 사용자 요구사항을 만족하는지를 발주자가 최종 인수를 위하여 검증한다.
+method: 요구사항 ID를 기준으로 시험시나리오와 시험케이스를 기술한다.
+depends_on: [R1, D2]
+entities:
+  scenarios:
+    id_type: AT
+    desc: 인수시험 시나리오 1개(요구사항 단위)
+    fields:
+      id: {label: 시험 시나리오 ID, required: true, desc: "시험 시나리오에 대한 유일한 ID를 부여하여 기입한다."}
+      name: {label: 시험 시나리오명, required: true, desc: "시험 시나리오의 명칭을 기입한다."}
+      description: {label: 시험 시나리오 설명, desc: "시험에 대한 간략한 설명을 기술한다."}
+      requirement_id: {label: 관련 요구사항 ID, ref: REQ, required: true, desc: "관련되는 사용자 요구사항 정의서의 요구사항 ID를 기입한다."}
+      cases:
+        label: 시험 케이스
+        type: object-list
+        fields:
+          id: {label: 시험 케이스 ID, id_type: ATC}
+          description: {label: 시험 케이스 설명}
+          procedure: {label: 시험 절차, type: steps}
+          scenario_desc: {label: 시나리오 설명}
+          note: {label: 비고, blank: silent}
+          round: {label: 차수}
+          steps:
+            label: 시험 케이스 상세
+            type: object-list
+            fields:
+              seq: {label: 순번}
+              task: {label: 업무처리 내용}
+              test_item: {label: 시험 항목}
+              precondition: {label: 사전조건}
+              input: {label: 입력자료}
+              expected: {label: 예상결과}
+              screen_id: {label: 화면ID, ref: SCR}
+              result: {label: 시험결과, result: true, desc: "시험결과서로 활용될 경우 실제 시험을 수행한 결과를 기술한다."}
+              note: {label: 비고, blank: silent}
+layout:
+  - section: 1. 시험 시나리오
+  - cards:
+      source: scenarios
+      sort: id
+      rows:
+        - kv: [{label: 시험시나리오 ID, key: id}]
+        - kv: [{label: 시험시나리오명, key: name}]
+        - kv: [{label: 시험시나리오설명, key: description}]
+        - kv: [{label: 관련 요구사항 ID, key: requirement_id}]
+        - subtable:
+            source: cases
+            columns:
+              - {label: 시험케이스 ID, key: id, w: 4, align: center}
+              - {label: 시험케이스 설명, key: description, w: 5}
+              - {label: 시험 절차, key: procedure, w: 7, format: steps}
+              - {label: 시나리오 설명, key: scenario_desc, w: 6}
+              - {label: 비고, key: note, w: 2}
+  - section: 2. 시험케이스
+  - cards:
+      source: scenarios
+      sort: id
+      flatten: cases
+      rows:
+        - kv: [{label: 차수, key: item.round}]
+        - kv: [{label: 시험시나리오 ID, key: parent.id}, {label: 시험시나리오명, key: parent.name}]
+        - kv: [{label: 시험케이스 ID, key: item.id}]
+        - subtable:
+            source: item.steps
+            header:
+              - [{label: 시험 절차, span: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}, {rowspan: 2}]
+            columns:
+              - {label: 순번, key: seq, w: 1.2, align: center}
+              - {label: 업무처리 내용, key: task, w: 3.3}
+              - {label: 시험 항목, key: test_item, w: 3}
+              - {label: 사전조건, key: precondition, w: 3}
+              - {label: 입력자료, key: input, w: 3.5}
+              - {label: 예상결과, key: expected, w: 3.5}
+              - {label: 화면ID, key: screen_id, w: 2.5, align: center}
+              - {label: 시험결과, key: result, w: 2.5, result: true}
+              - {label: 비고, key: note, w: 1.5}

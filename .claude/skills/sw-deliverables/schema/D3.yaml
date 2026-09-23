@@ -1,0 +1,119 @@
+code: D3
+name: 컴포넌트 설계서
+doc: CMP
+phase: design
+scope: subsystem
+orientation: portrait
+purpose: >-
+  설계 클래스 모형에서 도출한 클래스들을 C&V(공통성과 변경성) 기준에 따라 그룹핑하여 컴포넌트를 식별하여
+  패키지도를 작성하고 식별한 컴포넌트의 내부 클래스 및 인터페이스의 명세를 기술한다.
+method: >-
+  클래스를 그룹핑하여 도출한 컴포넌트의 패키지도를 작성하고, 식별한 컴포넌트의 목록을 작성한다. 또한 각각의
+  컴포넌트에 포함하고 있는 내부 클래스들을 명세하고, 인터페이스는 사용자에게 제공하는 오퍼레이션별로 상세한
+  명세를 작성한다.
+depends_on: [D1]
+entities:
+  components:
+    id_type: CMP
+    desc: 컴포넌트 1개. 구조도(1장)·목록(2장)·명세(3장)에 함께 사용된다.
+    fields:
+      id: {label: 컴포넌트 ID, required: true, desc: "컴포넌트별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 컴포넌트명, required: true, desc: "컴포넌트 이름을 부여하여 기입한다."}
+      overview: {label: 개요, desc: "컴포넌트에 대한 설명을 간략히 기입한다."}
+      usecase_ids: {label: 관련 유스케이스 ID, type: ids, ref: UC, required: true}
+      layer: {label: 레이어, enum: [Presentation, Biz Logic, Integration, Data, Common], desc: "구조도에서 의존관계를 Layer(Biz Logic, Integration 등)로 구분하여 표시하기 위한 값"}
+      depends_on:
+        label: 의존 컴포넌트
+        type: object-list
+        blank: silent
+        fields:
+          component_id: {label: 대상 컴포넌트 ID(다른 서브시스템 가능)}
+          label: {label: "의존 내용(예: 호출, 조회)"}
+      internal_classes:
+        label: 내부 클래스
+        type: object-list
+        fields:
+          id: {label: 내부 클래스 ID, desc: "컴포넌트에 속한 내부 클래스별로 유일한 ID. 설계 클래스 ID와 일관성을 가져야 한다(=설계 클래스 ID 사용)."}
+          name: {label: 클래스명, blank: silent, desc: "비우면 설계 클래스명을 자동 사용"}
+          description: {label: 설명, desc: "내부 클래스에 대한 설명을 간략하게 기입한다."}
+      interface_classes:
+        label: 인터페이스 클래스
+        type: object-list
+        fields:
+          id: {label: 인터페이스 ID, id_type: CIF, desc: "컴포넌트에 속한 인터페이스 클래스별 유일한 ID (CIF-…)"}
+          name: {label: 인터페이스명}
+          operations:
+            label: 오퍼레이션
+            type: object-list
+            fields:
+              name: {label: 오퍼레이션명}
+              kind: {label: 구분, enum: [Serviced, Required], desc: "서비스를 제공하는 오퍼레이션(Serviced)과 서비스를 요청하는 오퍼레이션(Required)으로 구분"}
+  interfaces:
+    id_type: CIF
+    id_is_ref: true          # ID 정의는 components[].interface_classes, 여기서는 참조(인터페이스ID+오퍼레이션이 유일)
+    unique_key: [id, operation]
+    desc: "인터페이스 명세 — 인터페이스별로 오퍼레이션 개수만큼 작성(인터페이스ID+오퍼레이션 1건 = 1항목)"
+    fields:
+      id: {label: 인터페이스 ID, required: true, desc: "컴포넌트의 인터페이스별로 유일한 ID를 부여하여 기입한다."}
+      name: {label: 인터페이스명, required: true}
+      component_id: {label: 소속 컴포넌트 ID, ref: CMP}
+      operation: {label: 오퍼레이션명, required: true, desc: "인터페이스에 속한 오퍼레이션명을 기술한다."}
+      overview: {label: 오퍼레이션 개요, desc: "오퍼레이션이 제공하는 또는 요청하는 서비스의 기능 및 역할을 간략하게 기술한다."}
+      precondition: {label: 사전조건, desc: "오퍼레이션이 작동하기 전에 항상 참이어야 하는 조건을 기술한다."}
+      postcondition: {label: 사후조건, desc: "오퍼레이션이 작동한 후에 항상 참이어야 하는 조건을 기술한다."}
+      params: {label: 파라미터, type: list, desc: "오퍼레이션이 가지는 파라미터를 기술한다(예: reqDTO : OrderReqDTO)."}
+      returns: {label: 반환값, desc: "오퍼레이션이 작동 후 제공하는 반환값이 있는 경우 그 값을 기술한다."}
+layout:
+  - section: 1. 컴포넌트 구조도
+  - cards:
+      source: components
+      sort: id
+      rows:
+        - kv: [{label: 컴포넌트 ID, key: id}, {label: 컴포넌트명, key: name}]
+        - kv: [{label: 관련 유스케이스 ID, key: usecase_ids}]
+        - diagram: {kind: component, key: id}
+  - note: "※ 시스템을 구성하는 컴포넌트간의 의존관계(dependency)를 Layer(Biz Logic, Integration)로 구분하여 표시한다."
+  - section: 2. 컴포넌트 목록
+  - table:
+      source: components
+      sort: id
+      columns:
+        - {label: 컴포넌트ID, key: id, w: 7, align: center}
+        - {label: 컴포넌트명, key: name, w: 8}
+        - {label: 개요, key: overview, w: 16}
+        - {label: 관련 유스케이스 ID, key: usecase_ids, w: 8, align: center}
+  - section: 3. 컴포넌트 명세
+  - cards:
+      source: components
+      sort: id
+      rows:
+        - kv: [{label: 컴포넌트 ID, key: id}, {label: 컴포넌트명, key: name}]
+        - kv: [{label: 컴포넌트 개요, key: overview}]
+        - label: 내부 클래스
+        - subtable:
+            source: internal_classes
+            columns:
+              - {label: ID, key: id, w: 4, align: center}
+              - {label: 클래스명, key: name, lookup_self: CL, w: 6}
+              - {label: 설명, key: description, w: 14}
+        - label: 인터페이스 클래스
+        - subtable:
+            source: interface_classes
+            flatten: operations
+            columns:
+              - {label: ID, key: parent.id, w: 4, align: center, merge: true}
+              - {label: 인터페이스명, key: parent.name, w: 6, merge: true}
+              - {label: 오퍼레이션명, key: item.name, w: 8}
+              - {label: 구분, key: item.kind, w: 6, align: center, header_note: Serviced/Required}
+  - section: 4. 인터페이스 명세
+  - cards:
+      source: interfaces
+      sort: id
+      rows:
+        - kv: [{label: 인터페이스 ID, key: id}, {label: 인터페이스명, key: name}]
+        - kv: [{label: 오퍼레이션명, key: operation}]
+        - kv: [{label: 오퍼레이션 개요, key: overview}]
+        - kv: [{label: 사전조건, key: precondition}]
+        - kv: [{label: 사후조건, key: postcondition}]
+        - kv: [{label: 파라미터, key: params, format: numbered}]
+        - kv: [{label: 반환값, key: returns}]

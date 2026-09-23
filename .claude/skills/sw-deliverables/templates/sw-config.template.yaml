@@ -1,0 +1,86 @@
+# ─────────────────────────────────────────────────────────────
+#  SW 표준 산출물 자동 작성 설정 파일 (sw-config.yaml)
+#  근거: CBD SW개발 표준 산출물 관리 가이드(2011.12)
+#  이 파일의 값은 모든 산출물 헤더·제·개정 이력에 고정 적용됩니다.
+# ─────────────────────────────────────────────────────────────
+
+project:
+  id: PRJ                      # 프로젝트 ID (영문 대문자 2~6자) — 산출물 ID 앞자리
+  name: ""                     # 프로젝트(사업)명
+  system_name: ""              # 산출물 헤더의 '시스템명'
+
+document:
+  author: ""                   # 작성자 (제·개정 이력)
+  approver: ""                 # 승인자 (제·개정 이력)
+  date: auto                   # 작성일자: auto(생성일) 또는 YYYY-MM-DD 고정
+  date_format: "YYYY. MM. DD"  # 가이드 사례 표기(2011. 11. 07)
+  fill_version: false          # 버전 기입 안 함 (헤더·이력의 '버전' 칸을 비워 둠)
+  font: "맑은 고딕"
+
+# 서브시스템: 산출물은 서브시스템별 파일로 나뉘어 생성되고, 서브시스템 단위로 병렬 작성됩니다.
+#  - id: 영문 대문자 2~5자 (ID 규칙의 {sub} 자리에 들어감)
+#  - COM(공통)은 성능·보안·품질 등 여러 서브시스템에 걸친 요구사항을 담는 용도
+subsystems:
+  - id: COM
+    name: 공통
+    description: 성능·보안·품질 등 시스템 전반에 적용되는 공통 요구사항
+
+# 생성할 산출물. 가이드상 관련 업무가 없으면 생략 가능 (예: 데이터 전환이 없으면 D12)
+deliverables:
+  skip: []                     # 예: [D12]
+  optional: [GL]               # 선택 산출물: GL(용어집), CC(개념적 클래스 모형 기술서)
+
+# 공란 표시 (Q9 결정: 미정 / 정보 부족 구분)
+markers:
+  missing: "(정보 부족)"        # 입력 자료에 관련 정보가 없음
+  tbd: "(미정)"                 # 회의에서 논의됐으나 결정되지 않음
+  none: "해당 없음"             # 없음이 확실한 목록(빈 목록 [] 으로 명시)
+  trace_empty: "-"             # 추적표에서 아직 연결되지 않은 칸
+
+# AI 제안 표시 (Q1 결정: 제안 표시 방식)
+ai_proposal:
+  highlight: true              # 미확인 AI 제안 칸을 노란 음영으로 표시
+  color: "FFF2B3"
+  legend: "※ 노란 음영: AI 제안 항목(검토 전)"
+
+# ID 규칙 — 가이드 3장(프로젝트ID+서브시스템ID+산출물코드+순서번호) + 공공 SW사업 통용 규칙
+ids:
+  document: "{project}_{sub}_{doc}_{seq}"     # 산출물(문서) ID, 예: PRJ_SA_REQ_010 (가이드 사례 그대로)
+  document_seq: "010"
+  element:
+    REQ: "{cat}-{sub}-{n:3}"     # 요구사항: 공공 RFP 분류코드 SFR·PER·SIR·DAR·TER·SER·QUR·COR·ECR·PMR·PSR (+OPR)
+    ACT: "ACT-{sub}-{n:2}"       # 액터
+    UCD: "UCD-{sub}-{n:2}"       # 유스케이스 다이어그램
+    UC: "UC-{sub}-{n:3}"         # 유스케이스
+    SD: "SD-{sub}-{n:3}"         # 시퀀스도 (번호는 관련 유스케이스 번호와 맞춤 권장)
+    CD: "CD-{sub}-{n:3}"         # 설계 클래스도
+    CL: "CL-{sub}-{n:3}"         # 설계 클래스
+    SCR: "SCR-{sub}-{n:3}"       # 화면
+    RPT: "RPT-{sub}-{n:3}"       # 출력물
+    CMP: "CMP-{sub}-{n:2}"       # 컴포넌트
+    CIF: "CIF-{sub}-{n:3}"       # 컴포넌트 인터페이스
+    IF: "IF-{sub}-{n:3}"         # 내·외부 인터페이스(연계)
+    ERD: "ERD-{sub}-{n:2}"       # ERD
+    ENT: "ENT-{sub}-{n:3}"       # 엔티티
+    DB: "DB-{n:2}"               # 데이터베이스
+    TS: "TS_{name}"              # 테이블스페이스
+    TB: "TB_{sub}_{name}"        # 테이블 (물리명, 공공 DB 표준화 관행의 TB_ 접두어)
+    IX: "{name}"                 # 인덱스 (PK_테이블, IX_테이블_01 권장)
+    ST: "ST-{sub}-{n:3}"         # 시스템시험 시나리오
+    IT: "IT-{sub}-{n:3}"         # 통합시험 시나리오
+    ITC: "{parent}-{n:2}"        # 통합시험 케이스
+    UT: "UT-{sub}-{n:3}"         # 단위시험
+    UTC: "{parent}-{n:2}"        # 단위시험 케이스
+    AT: "AT-{sub}-{n:3}"         # 인수시험 시나리오
+    ATC: "{parent}-{n:2}"        # 인수시험 케이스
+    PGM: "PGM-{sub}-{n:3}"       # 프로그램 파일
+    DDL: "DDL-{sub}-{n:3}"       # DB 생성 스크립트
+    CC: "CC-{sub}-{n:3}"         # 개념 클래스 (선택)
+    CCD: "CCD-{sub}-{n:2}"       # 개념 클래스도 (선택)
+
+database:
+  dbms: postgresql             # DDL 생성 방언: postgresql | oracle | mysql | mssql
+
+security:
+  mask_pii: true               # 입력 정규화 시 주민번호·전화번호·이메일·카드번호 마스킹
+  notice_shown: false          # 최초 실행 시 보안 주의사항 안내 여부(자동 갱신)

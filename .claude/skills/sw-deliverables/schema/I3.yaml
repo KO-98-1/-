@@ -1,0 +1,53 @@
+code: I3
+name: DB 생성 스크립트
+doc: DDL
+phase: implementation
+scope: subsystem
+orientation: landscape
+generated: true           # D9(데이터베이스 설계서)로부터 목록과 DDL 파일을 자동 생성
+purpose: >-
+  설치할 목적의 물리 데이터베이스 테이블의 명세와 테이블, 초기데이터 등을 생성하기 위한 생성 스크립트를 작성한다.
+method: >-
+  데이터베이스 테이블 및 생성 스크립트의 목록을 기술하고, 하드웨어 배치도 상의 데이터베이스 설치 위치를 표시하며
+  테이블 생성 스크립트를 DDL로 작성한다.
+depends_on: [D9]
+entities:
+  scripts:
+    id_type: DDL
+    desc: "생성 스크립트 1개(자동 생성: 서브시스템×데이터베이스 단위)"
+    fields:
+      id: {label: 생성 스크립트 ID, required: true}
+      name: {label: 생성 스크립트명, required: true}
+      database_id: {label: 데이터베이스 ID, ref: DB}
+      table_ids: {label: 테이블 ID, type: ids, ref: TB}
+      install_location: {label: 설치위치, desc: "테이블이 설치될 하드웨어 명칭 또는 모델명을 기술한다.", ask: "DB {database_id}의 설치 서버(하드웨어 명칭·모델)는?"}
+  init_data:
+    type: object
+    desc: 3. 코드 및 초기 데이터 생성 스크립트(스크립트 파일 제출)
+    fields:
+      text: {label: 내용, type: text}
+      _meta: {label: 메타}
+layout:
+  - section: 1. 목록
+  - table:
+      source: $ddl_rows
+      header:
+        - [{label: 관련 서브시스템, span: 1, rowspan: 2}, {label: 생성 스크립트, span: 2}, {label: 데이터베이스, span: 2}, {label: 테이블, span: 2}, {label: 인덱스, span: 2}, {label: 트리거, span: 1, rowspan: 2}, {label: 설치위치, span: 1, rowspan: 2}]
+      columns:
+        - {label: 관련 서브시스템, key: sub_name, w: 5, merge: true}
+        - {label: ID, key: script_id, w: 5, align: center, merge: true}
+        - {label: 스크립트명, key: script_name, w: 7, merge: true}
+        - {label: ID, key: db_id, w: 4, align: center, merge: true}
+        - {label: 데이터베이스명, key: db_name, w: 5, merge: true}
+        - {label: ID, key: table_id, w: 7}
+        - {label: 테이블명, key: table_name, w: 5}
+        - {label: ID, key: index_ids, w: 7}
+        - {label: 인덱스명, key: index_names, w: 5}
+        - {label: 트리거, key: trigger, w: 4}
+        - {label: 설치위치, key: install_location, w: 5, merge: true}
+  - section: 2. DB생성 스크립트
+  - note: (스크립트 파일 제출)
+  - textblock: {key: $ddl_files}
+  - section: 3. 코드 및 초기 데이터 생성 스크립트
+  - note: (스크립트 파일 제출)
+  - textblock: {key: init_data.text, meta_of: init_data}

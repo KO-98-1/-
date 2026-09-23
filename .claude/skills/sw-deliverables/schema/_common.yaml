@@ -1,0 +1,34 @@
+# 모든 산출물 공통 규칙 (가이드 Ⅱ·Ⅲ장 공통 양식)
+phases:
+  analysis: 분석
+  design: 설계
+  implementation: 구현
+  test: 시험
+
+# 산출물 공통 구조: ▣ 제·개정 이력 → 헤더(코드·산출물명·시스템명·서브시스템명·단계명·작성일자·버전) → 본문
+history_columns: [날짜, 버전, 작성자, 승인자, 내용]
+
+# 모든 엔티티(목록의 한 항목)에 붙는 출처·상태 메타데이터
+meta:
+  _meta:
+    origin: "fact | ai | derived  — fact: 입력 자료에 근거, ai: AI 제안(추론), derived: 다른 산출물에서 기계적으로 파생"
+    sources: "근거 위치 목록. 형식 '입력ID:시작줄-끝줄' (예: MTG-001:12-18). origin=fact 이면 필수"
+    confirmed: "사람이 검토·승인하면 true (AI 제안 음영 해제)"
+    ai_fields: "fact 항목 안에서 AI가 추정해 채운 필드 이름 목록 (예: [priority, acceptance])"
+    tbd: "회의에서 논의됐으나 결정되지 않은 필드 → {필드명: 사유}. 해당 칸은 '(미정)'으로 표시"
+
+# 요구사항 구분 → ID 분류코드 (공공 SW사업 제안요청서 요구사항 분류 + 가이드 R1 '구분' 목록)
+requirement_categories:
+  - {name: 정보시스템 개요 및 기능목록, code: SFR, group: functional}
+  - {name: 기능 요구사항, code: SFR, group: functional}
+  - {name: 성능 요구사항, code: PER, group: nonfunctional}
+  - {name: 품질 요구사항, code: QUR, group: nonfunctional}
+  - {name: 인터페이스 요구사항, code: SIR, group: nonfunctional}
+  - {name: 데이터 요구사항, code: DAR, group: nonfunctional}
+  - {name: 운영 요구사항, code: OPR, group: nonfunctional}
+  - {name: 제약사항, code: COR, group: nonfunctional}
+  - {name: 보안 요구사항, code: SER, group: nonfunctional}
+  - {name: 테스트 요구사항, code: TER, group: nonfunctional}
+  - {name: 시스템 장비 구성 요구사항, code: ECR, group: nonfunctional}
+  - {name: 프로젝트 관리 요구사항, code: PMR, group: nonfunctional}
+  - {name: 프로젝트 지원 요구사항, code: PSR, group: nonfunctional}
