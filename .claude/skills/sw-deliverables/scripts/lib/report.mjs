@@ -1,7 +1,7 @@
 // 검토 리포트: 단계 확인 게이트에서 사람에게 보여줄 요약·AI 제안·미정·질문지
 import fs from 'node:fs';
 import path from 'node:path';
-import { isEmpty } from './model.mjs';
+import { isEmpty, unrenderedReason } from './model.mjs';
 import { isAiUnconfirmed, tbdOf, collectSilentFields } from './values.mjs';
 import { isoToday, subsystemById } from './project.mjs';
 import { PHASE_NAMES } from './schema.mjs';
@@ -79,13 +79,29 @@ export function buildReport(ctx, model, validation, { codes, subs, stage }) {
   const docs = Object.values(model.docs)
     .filter((d) => (!codes || codes.includes(d.code)) && (!subs || subs.includes(d.sub)))
     .sort((a, b) => a.sub.localeCompare(b.sub) || ctx.schemas.list.findIndex((s) => s.code === a.code) - ctx.schemas.list.findIndex((s) => s.code === b.code));
+  const skipped = [];
   for (const d of docs) {
+    // 결과 없는 결과서는 문서를 만들지 않으므로 요약 대신 '만들지 않은 산출물'에 둔다
+    const why = unrenderedReason(ctx, model, d.sub, d.code);
+    if (why) { skipped.push({ sub: d.sub, code: d.code, name: ctx.schemas.byCode[d.code].name, reason: why, needs: '실제 시험 수행 결과(수행자·수행일·결과·결함)' }); continue; }
     const a = analyzeDoc(ctx, d);
     const err = validation.errors.filter((e) => e.sub === d.sub && e.code === d.code).length;
     const warn = validation.warnings.filter((e) => e.sub === d.sub && e.code === d.code).length;
     rows.push({ sub: d.sub, code: d.code, name: ctx.schemas.byCode[d.code].name, ...a, errors: err, warnings: warn });
   }
-  return { stage, date: isoToday(), rows, validation };
+  for (const [sub, map] of Object.entries(model.skipped || {})) {
+    if (subs && !subs.includes(sub)) continue;
+    for (const [code, info] of Object.entries(map || {})) {
+      if (codes && !codes.includes(code)) continue;
+      skipped.push({ sub, code, name: ctx.schemas.byCode[code]?.name || code, reason: info?.reason || '', needs: info?.needs || '', sources: info?.sources || [] });
+    }
+  }
+  // 설정에서 제외한 산출물(가이드 Ⅰ.3: 관련 업무가 없으면 생략 가능)
+  for (const code of ctx.cfg.deliverables?.skip || []) {
+    if (stage && ctx.schemas.byCode[code]?.phase !== stage) continue;
+    skipped.push({ sub: '전체', code, name: ctx.schemas.byCode[code]?.name || code, reason: 'sw-config.yaml deliverables.skip — 관련 업무 없음(가이드 Ⅰ.3)', needs: '' });
+  }
+  return { stage, date: isoToday(), rows, skipped, validation };
 }
 
 export function reportMarkdown(ctx, rep) {
@@ -105,7 +121,16 @@ export function reportMarkdown(ctx, rep) {
   }
   L.push(`| **합계** | | **${tot.entities}** | **${tot.missing}** | **${tot.tbd}** | **${tot.ai}** | **${tot.errors}** | **${tot.warnings}** |`, '');
 
-  L.push('## 2. 확인이 필요한 AI 제안', '');
+  L.push('## 2. 만들지 않은 산출물 (근거 부족·관련 업무 없음)', '');
+  L.push('> 가이드 작성 목적의 핵심 내용을 입력 자료·선행 산출물로 쓸 수 없는 산출물은 부정확하게 만들지 않고 여기에 남긴다. 필요한 자료를 넣고 다시 실행하면 작성된다.', '');
+  if (!rep.skipped?.length) L.push('- 없음', '');
+  else {
+    L.push('| 서브시스템 | 산출물 | 사유 | 필요한 자료 |', '|---|---|---|---|');
+    for (const k of rep.skipped) L.push(`| ${k.sub} | ${k.code} ${k.name} | ${String(k.reason).replace(/\|/g, '/')} | ${String(k.needs || '').replace(/\|/g, '/')} |`);
+    L.push('');
+  }
+
+  L.push('## 3. 확인이 필요한 AI 제안', '');
   const withAi = rep.rows.filter((r) => r.ais.length);
   if (!withAi.length) L.push('- 없음', '');
   for (const r of withAi) {
@@ -127,7 +152,7 @@ export function reportMarkdown(ctx, rep) {
     L.push('');
   }
 
-  L.push('## 3. 미정 항목 (회의에서 결정되지 않음)', '');
+  L.push('## 4. 미정 항목 (회의에서 결정되지 않음)', '');
   const withTbd = rep.rows.filter((r) => r.tbds.length);
   if (!withTbd.length) L.push('- 없음', '');
   for (const r of withTbd) {
@@ -136,7 +161,7 @@ export function reportMarkdown(ctx, rep) {
     L.push('');
   }
 
-  L.push('## 4. 정보 부족 — 답해 주시면 다음 실행에 반영되는 질문', '');
+  L.push('## 5. 정보 부족 — 답해 주시면 다음 실행에 반영되는 질문', '');
   let qn = 0;
   for (const r of rep.rows) {
     const qs = r.gaps.filter((g) => g.question);
@@ -155,7 +180,7 @@ export function reportMarkdown(ctx, rep) {
   const other = rep.rows.reduce((a, r) => a + r.gaps.filter((g) => !g.question).length, 0);
   if (other) L.push(`그 밖에 질문 템플릿이 없는 ${miss} 칸 ${other}개는 문서에 그대로 표시됩니다.`, '');
 
-  L.push('## 5. 검증 결과', '');
+  L.push('## 6. 검증 결과', '');
   const v = rep.validation;
   L.push(`- 오류 ${v.errors.length}건 · 경고 ${v.warnings.length}건`, '');
   for (const e of v.errors.slice(0, 80)) L.push(`- ❌ ${[e.sub, e.code, e.id, e.field].filter(Boolean).join(' · ')} — ${e.message}`);

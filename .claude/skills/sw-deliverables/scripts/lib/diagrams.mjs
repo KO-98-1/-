@@ -273,7 +273,8 @@ function erdDef(model, sub, erd) {
     }
   }
   const alias = new Map(ids.map((id, i) => [id, `E${i + 1}`]));
-  const L = ['erDiagram'];
+  // ELK 배치로 관계선이 짧고 촘촘하게 — 엔티티가 많아도 페이지 폭에서 글씨가 읽히도록
+  const L = [`${ELK}erDiagram`];
   for (const id of ids) {
     const e = lookup(model, id)?.entity || { name: id };
     // 그림에는 키 속성 우선 최대 10개(전체 속성은 엔티티 명세 표에 있음) — 축소로 글씨가 작아지는 것 방지
@@ -291,9 +292,16 @@ function erdDef(model, sub, erd) {
     if (all.length > 10) L.push(`    생략 외_${all.length - 10}개_속성`); // ER 속성 문법(타입 이름, 이름은 문자로 시작)에 맞춘 생략 표시
     L.push('  }');
   }
+  // 양쪽 엔티티에 같은 관계가 서로 반대 방향으로 적혀 있으면 한 번만 그린다
+  const drawn = new Set();
   for (const r of rels) {
+    const pair = [r.from, r.target].sort().join('|');
+    if (drawn.has(pair)) continue;
+    drawn.add(pair);
     const f = CARD[r.cardinality] || CARD['1:N'];
-    L.push(`  ${alias.get(r.from)} ${f(r.optional === 'Y')} ${alias.get(r.target)} : "${lbl(r.label || '관계')}"`);
+    // 그림의 관계명은 짧게(전체 관계명은 엔티티 명세 표에 있음) — 긴 관계명이 그림을 넓게 벌려 글씨가 작아지는 것 방지
+    const name = String(r.label || '관계');
+    L.push(`  ${alias.get(r.from)} ${f(r.optional === 'Y')} ${alias.get(r.target)} : "${lbl(name.length > 12 ? `${name.slice(0, 11)}…` : name)}"`);
   }
   return L.join('\n');
 }

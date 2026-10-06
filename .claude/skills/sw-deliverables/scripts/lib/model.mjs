@@ -11,6 +11,12 @@ export function modelFile(p, sub, code) {
   return path.join(p.model, sub, `${code}.yaml`);
 }
 
+// 생략 기록: 가이드 작성 목적의 핵심 내용을 쓸 근거가 없어 만들지 않은 산출물 → {코드: {reason, needs, sources}}
+export const SKIP_FILE = '_skip.yaml';
+export function skipFile(p, sub) {
+  return path.join(p.model, sub, SKIP_FILE);
+}
+
 function isEmpty(v) {
   return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)
     || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).filter((k) => k !== '_meta').length === 0);
@@ -20,6 +26,7 @@ export { isEmpty };
 export async function loadModel(ctx) {
   const { p, schemas } = ctx;
   const docs = {};
+  const skipped = {};
   const errors = [];
   if (fs.existsSync(p.model)) {
     for (const sub of fs.readdirSync(p.model)) {
@@ -27,6 +34,14 @@ export async function loadModel(ctx) {
       if (!fs.statSync(dir).isDirectory()) continue;
       for (const f of fs.readdirSync(dir)) {
         if (!f.endsWith('.yaml')) continue;
+        if (f === SKIP_FILE) {
+          try {
+            skipped[sub] = (await readYaml(path.join(dir, f), {})) || {};
+          } catch (e) {
+            errors.push({ file: path.join(dir, f), message: e.message });
+          }
+          continue;
+        }
         const code = f.replace(/\.yaml$/, '').toUpperCase();
         if (!schemas.byCode[code]) continue;
         const file = path.join(dir, f);
@@ -41,7 +56,11 @@ export async function loadModel(ctx) {
   }
   const model = {
     docs,
+    skipped,
     errors,
+    isSkipped(sub, code) {
+      return !!skipped[sub]?.[code];
+    },
     get(sub, code) {
       return docs[docKey(sub, code)]?.data || {};
     },
@@ -121,6 +140,36 @@ export function collectAll(model, code, coll) {
     for (const item of d.data?.[coll] || []) out.push({ sub: d.sub, item });
   }
   return out;
+}
+
+// 결과서(results: true)에 실제 수행 결과가 하나라도 있는지.
+// 가이드상 결과서는 '수행한 시험 결과를 기술'하므로 결과가 없으면 문서를 만들지 않는다(뼈대 모델만 유지).
+export function hasResults(schema, data) {
+  const walk = (fields, obj) => {
+    if (!obj || typeof obj !== 'object') return false;
+    for (const [k, f] of Object.entries(fields || {})) {
+      if (!f || typeof f !== 'object') continue;
+      const v = obj[k];
+      if (f.result && !isEmpty(v)) return true;
+      if (f.fields && Array.isArray(v) && v.some((c) => walk(f.fields, c))) return true;
+      if (f.fields && v && typeof v === 'object' && !Array.isArray(v) && walk(f.fields, v)) return true;
+    }
+    return false;
+  };
+  return Object.entries(schema.entities || {}).some(([coll, e]) => {
+    const v = data?.[coll];
+    return Array.isArray(v) ? v.some((it) => walk(e.fields, it)) : walk(e.fields, v);
+  });
+}
+
+// 문서를 만들지 않는 이유(없으면 null): 생략 기록 또는 결과 없는 결과서
+export function unrenderedReason(ctx, model, sub, code) {
+  if (model.isSkipped(sub, code)) return `생략(단서 부족) — ${model.skipped[sub][code]?.reason || '사유 없음'}`;
+  const s = ctx.schemas.byCode[code];
+  if (s?.derived_from && s.results && model.has(sub, code) && !hasResults(s, model.get(sub, code))) {
+    return '실제 수행 결과가 입력되지 않음 → 결과 입력 후 생성';
+  }
+  return null;
 }
 
 export async function saveDoc(ctx, sub, code, data) {

@@ -119,6 +119,83 @@ export async function derive(ctx, model, { stage, subs }) {
   return done;
 }
 
+// ── 선행 산출물 기준 자동 생략(가이드 작성 방법의 선행 산출물: schema requires / requires_reqs) ──
+// 같은 단계에서 작성될 선행 산출물은 '있는 것'으로 보고, 선행 산출물이 생략되면 뒤 산출물도 연쇄로 생략한다.
+export async function preskip(ctx, model, { stage, subs }) {
+  const { planDocs } = await import('./prompt.mjs');
+  const { reqCategory } = await import('./schema.mjs');
+  const { skipFile } = await import('./model.mjs');
+  const done = [];
+  for (const sub of ctx.cfg.subsystems.map((x) => x.id)) {
+    if (subs && !subs.includes(sub)) continue;
+    // 이 단계 산출물 중 preskip이 기록한 생략은 지우고 아래에서 다시 판정한다(선행 산출물·요구사항이 생겼으면 풀리고, 그대로면 다시 기록)
+    const skipNow = { ...(model.skipped[sub] || {}) };
+    const before = new Set(Object.keys(skipNow));
+    for (const [code, info] of Object.entries(skipNow)) {
+      if (info?.by === 'preskip' && ctx.schemas.byCode[code]?.phase === stage) delete skipNow[code];
+    }
+    model.skipped[sub] = { ...skipNow };
+    const plan = planDocs(ctx, stage, sub, model);
+    const added = {};
+    for (const code of plan) {
+      if (skipNow[code] || model.has(sub, code)) continue;
+      const s = ctx.schemas.byCode[code];
+      let reason = null;
+      for (const req of s.requires || []) {
+        const rs = ctx.schemas.byCode[req];
+        if (skipNow[req]) { reason = `선행 산출물 ${req} ${rs.name}을(를) 근거 부족으로 만들지 않았다 — ${s.basis}`; break; }
+        if (!model.has(sub, req) && !plan.includes(req)) { reason = `선행 산출물 ${req} ${rs.name}이(가) 이 서브시스템에 없다 — ${s.basis}`; break; }
+      }
+      if (!reason && s.requires_reqs) {
+        const cats = (model.get(sub, 'R1').requirements || []).map((r) => reqCategory(ctx.schemas, r.category)?.code);
+        if (!cats.some((c) => s.requires_reqs.includes(c))) reason = `이 서브시스템의 사용자 요구사항 정의서에 ${s.requires_reqs.join('·')} 분류 요구사항이 없다 — ${s.basis}`;
+      }
+      if (!reason) continue;
+      const needs = s.requires_reqs ? `${s.requires_reqs.join('·')} 요구사항(입력 근거)` : `선행 산출물(${(s.requires || []).join(', ')})을 쓸 수 있는 입력 자료`;
+      skipNow[code] = added[code] = { reason, needs, sources: [], by: 'preskip', requires: s.requires || [] };
+      if (!before.has(code)) done.push(`${sub}:${code}`);
+    }
+    for (const code of before) if (!skipNow[code] && !added[code]) done.push(`해제 ${sub}:${code}`);
+    const changed = Object.keys(skipNow).length !== before.size || [...before].some((c) => !skipNow[c]);
+    if (changed || Object.keys(added).length) await writeYaml(skipFile(ctx.p, sub), skipNow);
+  }
+  return done;
+}
+
+// ── 병합 후 서브시스템 간 엔티티 관계 보완: 테이블 fk_ref(다른 서브시스템 테이블) → 엔티티 relationships ──
+// 병렬 작성 중에는 다른 서브시스템 ID를 쓰지 않으므로, 병합 뒤 FK 근거로 관계를 이어 준다(AI 판단 표시).
+export async function linkCrossSub(ctx, model) {
+  const tables = new Map();
+  for (const d of Object.values(model.docs)) {
+    if (d.code !== 'D9') continue;
+    for (const t of d.data.tables || []) tables.set(t.id, { sub: d.sub, t });
+  }
+  const added = [];
+  const touched = new Set();
+  for (const { sub, t } of tables.values()) {
+    const pkCols = (t.columns || []).filter((c) => c.pk === 'Y');
+    for (const c of t.columns || []) {
+      if (!c.fk_ref) continue;
+      const [tb] = String(c.fk_ref).split('.');
+      const target = tables.get(tb);
+      if (!target || target.sub === sub || !t.entity_id || !target.t.entity_id) continue;
+      const d8 = model.docs[`${sub}:D8`];
+      const ent = (d8?.data.entities || []).find((e) => e.id === t.entity_id);
+      if (!ent) continue;
+      ent.relationships = ent.relationships || [];
+      if (ent.relationships.some((r) => r.target === target.t.entity_id)) continue;
+      const card = pkCols.length === 1 && pkCols[0].column_id === c.column_id ? '1:1' : 'N:1';
+      ent.relationships.push({ target: target.t.entity_id, cardinality: card, optional: c.not_null === 'N' ? 'Y' : 'N', label: `${c.name || c.column_id}로 참조한다` });
+      ent._meta = ent._meta || {};
+      if (ent._meta.origin !== 'ai') ent._meta.ai_fields = [...new Set([...(ent._meta.ai_fields || []), 'relationships'])];
+      touched.add(`${sub}:D8`);
+      added.push(`${ent.id}→${target.t.entity_id}(${card})`);
+    }
+  }
+  for (const k of touched) await writeYaml(model.docs[k].file, model.docs[k].data);
+  return added;
+}
+
 // ── 소스코드 스캔 → I1 프로그램 목록 초안 ───────────────
 const SRC_EXT = ['.java', '.kt', '.js', '.jsx', '.ts', '.tsx', '.vue', '.py', '.cs', '.go', '.jsp', '.html', '.xml', '.sql', '.php', '.rb', '.scala', '.swift', '.dart'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'build', 'dist', 'target', 'out', 'bin', 'obj', '.idea', '.vscode', '__pycache__', '.next', 'coverage', 'vendor']);
@@ -150,6 +227,12 @@ export async function scanCode(ctx, model, { root, sub }) {
   }
   doc.programs = programs;
   await writeYaml(modelFile(ctx.p, sub, 'I1'), doc);
+  if (model.isSkipped(sub, 'I1')) {
+    const { skipFile } = await import('./model.mjs');
+    const rest = { ...model.skipped[sub] };
+    delete rest.I1;
+    await writeYaml(skipFile(ctx.p, sub), rest);
+  }
   return { scanned: files.length, added };
 }
 

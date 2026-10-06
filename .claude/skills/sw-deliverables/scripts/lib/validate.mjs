@@ -22,6 +22,19 @@ export async function validate(ctx, model, { subs = null, codes = null } = {}) {
 
   const want = (d) => (!subs || subs.includes(d.sub)) && (!codes || codes.includes(d.code));
 
+  // 생략 기록(model/<SUB>/_skip.yaml): 사유가 있어야 하고, 같은 산출물의 모델 파일과 함께 있으면 안 된다
+  for (const [sub, map] of Object.entries(model.skipped || {})) {
+    if (subs && !subs.includes(sub)) continue;
+    for (const [code, info] of Object.entries(map || {})) {
+      const where = { sub, code, field: '_skip.yaml' };
+      if (!schemas.byCode[code]) { add('error', where, `생략 기록의 산출물 코드 오류: '${code}'`); continue; }
+      if (codes && !codes.includes(code)) continue;
+      if (!info || typeof info !== 'object' || isEmpty(info.reason)) add('error', where, '생략 사유(reason)가 없습니다 — 가이드 작성 목적의 어떤 내용을 쓸 근거가 없는지 적으세요');
+      else if (isEmpty(info.needs)) add('warning', where, '생략을 해소하는 데 필요한 자료(needs)가 없습니다');
+      if (model.has(sub, code)) add('error', where, `생략으로 기록했는데 model/${sub}/${code}.yaml 도 있습니다 — 하나만 남기세요`);
+    }
+  }
+
   const checkMeta = (meta, where, { required = true } = {}) => {
     if (!meta) { if (required) add('error', where, '출처 메타(_meta) 누락: origin(fact|ai|derived)과 sources를 기록해야 합니다'); return; }
     if (!['fact', 'ai', 'derived'].includes(meta.origin)) add('error', where, `_meta.origin 값 오류: '${meta.origin}' (fact|ai|derived)`);
@@ -166,12 +179,14 @@ function traceChecks(ctx, model, add, want) {
   const { schemas } = ctx;
   const ofType = (t) => [...model.index.entries()].filter(([, i]) => i.type === t).map(([id, i]) => ({ id, ...i }));
   const exists = (code) => Object.values(model.docs).some((d) => d.code === code);
+  // 단서 부족으로 생략한 산출물은 추적 대상에서 뺀다(없는 게 정상)
+  const on = (sub, code) => exists(code) && !model.isSkipped(sub, code);
   const reqs = ofType('REQ');
   const ucs = ofType('UC');
   const w = (x, code) => ({ sub: x.sub, code, id: x.id });
   if (exists('R2')) {
     for (const r of reqs) {
-      if (!want({ sub: r.sub, code: 'R1' })) continue;
+      if (!want({ sub: r.sub, code: 'R1' }) || model.isSkipped(r.sub, 'R2')) continue;
       const cat = reqCategory(schemas, r.entity.category);
       if (cat?.group === 'functional' && !ucs.some((u) => (u.entity.requirement_ids || []).includes(r.id))) add('warning', w(r, 'R1'), `추적성: 기능 요구사항 ${r.id}를 구현하는 유스케이스가 없습니다`);
     }
@@ -179,10 +194,10 @@ function traceChecks(ctx, model, add, want) {
   const linked = (t, pred) => ofType(t).some(pred);
   for (const u of ucs) {
     if (!want({ sub: u.sub, code: 'R2' }) && !want({ sub: u.sub, code: 'D1' })) continue;
-    if (exists('D1') && !linked('SD', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D1'), `추적성: 유스케이스 ${u.id}의 시퀀스도가 없습니다`);
-    if (exists('D2') && !linked('SCR', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D2'), `추적성: 유스케이스 ${u.id}의 화면이 없습니다(화면이 없는 배치성 기능이면 무시)`);
-    if (exists('D3') && !linked('CMP', (c) => (c.entity.usecase_ids || []).includes(u.id))) add('warning', w(u, 'D3'), `추적성: 유스케이스 ${u.id}를 담당하는 컴포넌트가 없습니다`);
-    if (exists('D10') && !linked('IT', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D10'), `추적성: 유스케이스 ${u.id}의 통합시험 시나리오가 없습니다`);
+    if (on(u.sub, 'D1') && !linked('SD', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D1'), `추적성: 유스케이스 ${u.id}의 시퀀스도가 없습니다`);
+    if (on(u.sub, 'D2') && !linked('SCR', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D2'), `추적성: 유스케이스 ${u.id}의 화면이 없습니다(화면이 없는 배치성 기능이면 무시)`);
+    if (on(u.sub, 'D3') && !linked('CMP', (c) => (c.entity.usecase_ids || []).includes(u.id))) add('warning', w(u, 'D3'), `추적성: 유스케이스 ${u.id}를 담당하는 컴포넌트가 없습니다`);
+    if (on(u.sub, 'D10') && !linked('IT', (s) => s.entity.usecase_id === u.id)) add('warning', w(u, 'D10'), `추적성: 유스케이스 ${u.id}의 통합시험 시나리오가 없습니다`);
   }
   if (exists('D7')) {
     for (const r of reqs) {
@@ -193,10 +208,20 @@ function traceChecks(ctx, model, add, want) {
     }
   }
   if (exists('D11')) {
-    for (const c of ofType('CMP')) if (!linked('UT', (t) => t.entity.component_id === c.id)) add('warning', w(c, 'D11'), `추적성: 컴포넌트 ${c.id}의 단위시험이 없습니다`);
+    for (const c of ofType('CMP')) if (!model.isSkipped(c.sub, 'D11') && !linked('UT', (t) => t.entity.component_id === c.id)) add('warning', w(c, 'D11'), `추적성: 컴포넌트 ${c.id}의 단위시험이 없습니다`);
   }
   if (exists('D9')) {
-    for (const e of ofType('ENT')) if (!linked('TB', (t) => t.entity.entity_id === e.id)) add('warning', w(e, 'D9'), `추적성: 엔티티 ${e.id}에 대응하는 테이블이 없습니다`);
+    // DDL이 실행되려면: 키 컬럼 타입, 인덱스·PK가 가리키는 컬럼, FK 대상 컬럼이 모두 있어야 한다
+    for (const t of ofType('TB')) {
+      const cols = t.entity.columns || [];
+      const ids = new Set(cols.map((c) => c.column_id).filter(Boolean));
+      for (const c of cols) {
+        if ((c.pk === 'Y' || c.fk === 'Y' || c.fk_ref) && !c.type_length) add('error', w(t, 'D9'), `키 컬럼 타입 없음: ${t.id}.${c.column_id} — PK·FK 컬럼은 타입·길이가 있어야 DDL이 만들어진다(일반 관례 타입을 AI 제안으로 쓴다)`);
+        if (c.fk_ref && (!/^[A-Z0-9_]+\.[A-Z0-9_]+$/i.test(String(c.fk_ref)) || /\.tbd$/i.test(String(c.fk_ref)))) add('error', w(t, 'D9'), `fk_ref 형식 오류: ${t.id}.${c.column_id} → '${c.fk_ref}' (형식 TB_테이블.컬럼ID — 대상 컬럼을 모르면 공용 설계 지시의 키 컬럼을 쓴다)`);
+      }
+      for (const ix of t.entity.indexes || []) for (const col of ix.columns || []) if (!ids.has(col)) add('error', w(t, 'D9'), `인덱스 ${ix.id}의 컬럼 '${col}'이 ${t.id}에 없다`);
+    }
+    for (const e of ofType('ENT')) if (!model.isSkipped(e.sub, 'D9') && !linked('TB', (t) => t.entity.entity_id === e.id)) add('warning', w(e, 'D9'), `추적성: 엔티티 ${e.id}에 대응하는 테이블이 없습니다`);
     // 서브시스템 간 FK 참조(fk_ref: 'TB_이름.컬럼ID')가 실제 테이블·컬럼을 가리키는지
     const tables = ofType('TB');
     for (const t of tables) {
@@ -205,7 +230,16 @@ function traceChecks(ctx, model, add, want) {
         const [tb, col] = String(c.fk_ref).split('.');
         const target = tables.find((x) => x.id === tb);
         if (!target) add('warning', w(t, 'D9'), `FK 참조 대상 테이블 없음: ${t.id}.${c.column_id} → ${c.fk_ref}`);
-        else if (col && !(target.entity.columns || []).some((x) => x.column_id === col)) add('warning', w(t, 'D9'), `FK 참조 대상 컬럼 없음: ${t.id}.${c.column_id} → ${c.fk_ref} (${tb}에 ${col} 없음)`);
+        else if (col && !(target.entity.columns || []).some((x) => x.column_id === col)) add('error', w(t, 'D9'), `FK 참조 대상 컬럼 없음: ${t.id}.${c.column_id} → ${c.fk_ref} (${tb}에 ${col} 없음)`);
+        else if (col) {
+          const tc = (target.entity.columns || []).find((x) => x.column_id === col);
+          // DB는 FK가 대상 테이블의 PK(단일 컬럼)나 유일 인덱스 컬럼을 가리켜야 만들어진다
+          const pkCols = (target.entity.columns || []).filter((x) => x.pk === 'Y').map((x) => x.column_id);
+          const uniq = (target.entity.indexes || []).some((ix) => ix.unique === 'Y' && (ix.columns || []).length === 1 && ix.columns[0] === col);
+          if (!(pkCols.length === 1 && pkCols[0] === col) && !uniq) add('error', w(t, 'D9'), `FK 대상이 키가 아님: ${t.id}.${c.column_id} → ${c.fk_ref} — 대상 테이블의 PK(${pkCols.join(', ') || '없음'})나 유일 인덱스 컬럼을 참조해야 한다`);
+          const norm = (v) => String(v || '').toUpperCase().replace(/\s+/g, '');
+          if (tc?.type_length && c.type_length && norm(tc.type_length) !== norm(c.type_length)) add('warning', w(t, 'D9'), `FK 타입 불일치: ${t.id}.${c.column_id}(${c.type_length}) → ${c.fk_ref}(${tc.type_length})`);
+        }
       }
     }
   }

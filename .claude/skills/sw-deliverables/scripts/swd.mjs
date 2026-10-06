@@ -4,10 +4,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { SCRIPTS_DIR, runtimeDir, resolveDep, findBrowser } from './lib/deps.mjs';
 import { openProject, findRoot, readYaml } from './lib/project.mjs';
 import { loadSchemas, parseDocs, deliverablesForPhase, PHASES, PHASE_NAMES } from './lib/schema.mjs';
-import { loadModel } from './lib/model.mjs';
+import { loadModel, unrenderedReason } from './lib/model.mjs';
 import { nextIds } from './lib/ids.mjs';
 
 const HELP = `swd — CBD SW 표준 산출물 자동 작성 도구
@@ -23,6 +24,10 @@ const HELP = `swd — CBD SW 표준 산출물 자동 작성 도구
                                 서브에이전트 작성 지시서 생성 → .work/prompts/<단계>_<SUB>.md
   next-id --type <유형> --sub <ID> [--cat SFR] [--count N]
   validate [--sub ID,..] [--docs 코드|단계] [--json]
+  preskip --stage <단계> [--sub ID]
+                                선행 산출물이 없거나 생략된 산출물을 생략으로 기록(가이드 작성 방법 기준)
+  link                          병합 후 서브시스템 간 엔티티 관계를 테이블 FK(fk_ref)로 보완
+  ddl-check                     생성한 DDL을 내장 PostgreSQL(PGlite)에서 실제로 실행해 확인
   derive --stage implementation|test [--sub ID]
                                 결과서 뼈대 현행화(D11→I2, D10→T1, D7→T2, T6→T7)
   scan-code --src <소스폴더> --sub <ID>
@@ -109,15 +114,22 @@ async function renderSelection(ctx, model, args) {
   const subsFilter = list(args.sub);
   const codes = args.stage ? deliverablesForPhase(ctx.schemas, ctx.cfg, stageOf(args.stage)).map((s) => s.code) : parseDocs(ctx.schemas, ctx.cfg, args.docs);
   const jobs = [];
+  const skipNote = (sub, code) => {
+    const why = unrenderedReason(ctx, model, sub, code);
+    if (why) console.log(`  · ${sub} ${code} ${ctx.schemas.byCode[code].name}: ${why}`);
+    return !!why;
+  };
   for (const code of codes) {
     const s = ctx.schemas.byCode[code];
     if (s.scope === 'system') {
       if (subsFilter && !subsFilter.includes('SYSTEM')) continue;
+      if (skipNote('SYSTEM', code)) continue;
       if (code === 'R3' ? model.subsOf('R1').length : model.has('SYSTEM', code)) jobs.push({ code, sub: 'SYSTEM' });
       continue;
     }
     for (const sub of ctx.cfg.subsystems.map((x) => x.id)) {
       if (subsFilter && !subsFilter.includes(sub)) continue;
+      if (skipNote(sub, code)) continue;
       const has = code === 'I3' ? (model.get(sub, 'D9').tables || []).length > 0 : model.has(sub, code);
       // 모든 목록이 빈 목록([])으로 명시된 산출물 = 이 서브시스템에 해당 업무 없음 → 생성 생략(가이드 Ⅰ.3)
       const data = model.get(sub, code);
@@ -213,7 +225,7 @@ async function main() {
       const targets = args.all ? [...ctx.cfg.subsystems.map((s) => s.id), 'SYSTEM'] : list(args.sub);
       if (!targets) throw new Error('--sub <ID> 또는 --all 을 지정하세요');
       for (const sub of targets) {
-        const docs = list(args.docs) || planDocs(ctx, stage, sub);
+        const docs = list(args.docs) || planDocs(ctx, stage, sub, model);
         if (!docs.length) { console.log(`  · ${sub}: 이 단계에 작성할 산출물 없음`); continue; }
         const r = await writePrompt(ctx, model, { stage, sub, docs });
         console.log(`  📝 ${sub}: ${path.relative(ctx.p.root, r.file)} (${docs.join(',')}, ${r.chars.toLocaleString()}자)`);
@@ -236,6 +248,51 @@ async function main() {
       const { derive } = await import('./lib/ops.mjs');
       const done = await derive(ctx, model, { stage: stageOf(args.stage), subs: list(args.sub) });
       console.log(done.length ? `✔ 현행화: ${done.join(', ')}` : '  파생할 원본 산출물이 없습니다.');
+      return;
+    }
+    case 'preskip': {
+      const { preskip } = await import('./lib/ops.mjs');
+      const stage = stageOf(args.stage);
+      if (!PHASES.includes(stage)) throw new Error('--stage 를 지정하세요 (analysis|design|implementation|test)');
+      const done = await preskip(ctx, model, { stage, subs: list(args.sub) });
+      console.log(done.length ? `✔ 선행 산출물 기준 생략 기록: ${done.join(', ')}` : '  선행 산출물 기준으로 생략할 산출물 없음');
+      return;
+    }
+    case 'ddl-check': {
+      // 생성한 DDL을 내장 PostgreSQL(PGlite, WASM)에서 실제로 실행해 본다: 모든 서브시스템 테이블 생성 → FK 추가
+      const { ddlScripts, ddlText } = await import('./lib/computed.mjs');
+      let PGlite;
+      try { ({ PGlite } = await import(pathToFileURL(resolveDep('@electric-sql/pglite') || '').href)); }
+      catch { throw new Error("DDL 실행 확인에는 '@electric-sql/pglite'가 필요합니다: 스크립트 폴더에서 npm install @electric-sql/pglite"); }
+      if ((ctx.cfg.database?.dbms || 'postgresql') !== 'postgresql') { console.log('  PostgreSQL 방언일 때만 실행 확인을 지원합니다'); return; }
+      const db = new PGlite();
+      const tables = [];
+      const fks = [];
+      for (const sub of ctx.cfg.subsystems.map((x) => x.id)) {
+        if (!(model.get(sub, 'D9').tables || []).length) continue;
+        for (const sc of ddlScripts(ctx, model, sub)) {
+          const text = ddlText(ctx, sc);
+          const lines = text.split('\n');
+          fks.push(...lines.filter((l) => /FOREIGN KEY/i.test(l)).map((l) => ({ sub, sql: l })));
+          tables.push({ sub, name: sc.name, sql: lines.filter((l) => !/FOREIGN KEY/i.test(l)).join('\n') });
+        }
+      }
+      let bad = 0;
+      for (const t of tables) {
+        try { await db.exec(t.sql); console.log(`  ✔ ${t.name}`); } catch (e) { bad += 1; console.log(`  ❌ ${t.name}: ${e.message}`); }
+      }
+      for (const f of fks) {
+        try { await db.exec(f.sql); } catch (e) { bad += 1; console.log(`  ❌ ${f.sub} FK: ${f.sql.trim()} — ${e.message}`); }
+      }
+      const n = (await db.query("select count(*)::int n from information_schema.tables where table_schema='public'")).rows[0].n;
+      console.log(bad ? `✘ DDL 실행 오류 ${bad}건` : `✔ DDL 실행 확인: 테이블 ${n}개 · FK ${fks.length}개 생성(PostgreSQL)`);
+      process.exitCode = bad ? 1 : 0;
+      return;
+    }
+    case 'link': {
+      const { linkCrossSub } = await import('./lib/ops.mjs');
+      const added = await linkCrossSub(ctx, model);
+      console.log(added.length ? `✔ 서브시스템 간 엔티티 관계 ${added.length}건 추가: ${added.join(', ')}` : '  추가할 서브시스템 간 관계 없음');
       return;
     }
     case 'scan-code': {
@@ -292,7 +349,9 @@ async function main() {
       let docs = list(args.docs);
       if (!docs && args.stage) {
         const codes = deliverablesForPhase(ctx.schemas, ctx.cfg, stageOf(args.stage)).map((s) => s.code);
-        docs = Object.values(model.docs).filter((d) => codes.includes(d.code) && (!list(args.sub) || list(args.sub).includes(d.sub))).map((d) => `${d.sub}:${d.code}`);
+        docs = Object.values(model.docs)
+          .filter((d) => codes.includes(d.code) && (!list(args.sub) || list(args.sub).includes(d.sub)) && !unrenderedReason(ctx, model, d.sub, d.code))
+          .map((d) => `${d.sub}:${d.code}`);
         if (codes.includes('R3') && model.subsOf('R1').length) docs.push('SYSTEM:R3');
         if (codes.includes('I3')) for (const sub of model.subsOf('D9')) if (sub !== 'SYSTEM') docs.push(`${sub}:I3`);
       }
@@ -312,6 +371,11 @@ async function main() {
         const rs = rows.filter((r) => codes.includes(r.code));
         console.log(`\n[${PHASE_NAMES[ph]}] ${rs.length ? '' : '(작성 전)'}`);
         for (const r of rs) console.log(`  ${r.sub.padEnd(6)} ${r.code.padEnd(4)} ${r.name.padEnd(18)} 항목 ${String(r.items).padStart(3)} · 오류 ${r.errors} · 경고 ${r.warnings}`);
+        for (const [sub, map] of Object.entries(model.skipped)) {
+          for (const [code, info] of Object.entries(map || {})) {
+            if (codes.includes(code)) console.log(`  ${sub.padEnd(6)} ${code.padEnd(4)} ${(ctx.schemas.byCode[code]?.name || '').padEnd(18)} 생략(단서 부족) — ${info?.reason || ''}`);
+          }
+        }
       }
       const inputs = await readYaml(ctx.p.inputIndex, { inputs: [] });
       console.log(`\n입력 자료 ${inputs?.inputs?.length || 0}건 · 검증 오류 ${res.errors.length} · 경고 ${res.warnings.length}`);

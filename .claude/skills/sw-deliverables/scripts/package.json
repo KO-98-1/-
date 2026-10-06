@@ -13,5 +13,8 @@
     "docx": "^9.7.1",
     "js-yaml": "^5.4.2",
     "mammoth": "^1.12.3"
+  },
+  "optionalDependencies": {
+    "@electric-sql/pglite": "^0.3.16"
   }
 }

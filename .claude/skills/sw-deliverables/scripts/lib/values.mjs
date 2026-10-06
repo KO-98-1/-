@@ -39,6 +39,14 @@ export function tbdOf(meta, field) {
   return Object.prototype.hasOwnProperty.call(meta.tbd, field) ? String(meta.tbd[field] ?? '') : null;
 }
 
+// YAML에서 '이름: 설명'처럼 쓴 목록 항목은 객체가 된다 → '이름: 설명' 문장으로 되돌린다
+function pairText(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v !== 'object') return String(v);
+  if (Array.isArray(v)) return v.map(pairText).join(', ');
+  return Object.entries(v).filter(([k]) => k !== '_meta').map(([k, x]) => `${k}: ${pairText(x)}`).join(', ');
+}
+
 function asLines(value, format, join) {
   if (value === undefined || value === null) return [];
   if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
@@ -49,11 +57,11 @@ function asLines(value, format, join) {
       for (const f of value) {
         if (typeof f === 'string') { out.push(f); continue; }
         if (f?.name) out.push(f.name);
-        (f?.steps || []).forEach((s, i) => out.push(`  ${i + 1}) ${typeof s === 'string' ? s : JSON.stringify(s)}`));
+        (f?.steps || []).forEach((s, i) => out.push(`  ${i + 1}) ${typeof s === 'string' ? s : pairText(s)}`));
       }
       return out;
     }
-    const items = value.map((v) => (typeof v === 'string' || typeof v === 'number' ? String(v) : (v?.name ?? v?.text ?? JSON.stringify(v))));
+    const items = value.map((v) => (typeof v === 'string' || typeof v === 'number' ? String(v) : (v?.name ?? v?.text ?? pairText(v))));
     if (format === 'steps' || format === 'numbered') {
       return items.map((s, i) => (/^\s*(\d+[).]|[가-힣][.)])\s/.test(s) ? s : `${i + 1}) ${s}`));
     }
@@ -75,7 +83,12 @@ function derive(name, loc, row, rctx) {
     return ids.map((id) => {
       const inp = rctx.inputIndex?.get(id);
       if (!inp) return id;
-      return `${id} ${inp.title}${inp.date ? `(${inp.date})` : ''}`;
+      // 가이드 R1 '요구사항 출처': 문서번호와 문서명 — 제목 앞의 [분류] 표시와 제목 속 날짜는 빼고 일자는 한 번만
+      const date = inp.date || '';
+      let title = String(inp.title || '').replace(/^\s*(\[[^\]]*\]\s*)+/, '');
+      if (date) title = title.replace(new RegExp(`\\(?${date.replace(/-/g, '[-./]')}\\)?`, 'g'), '');
+      title = title.replace(/\s{2,}/g, ' ').replace(/^[\s·,-]+|[\s·,-]+$/g, '');
+      return `${id} ${title}${date ? `(${date})` : ''}`;
     });
   }
   if (name === 'actor_names') {

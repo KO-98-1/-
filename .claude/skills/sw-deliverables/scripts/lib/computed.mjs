@@ -149,7 +149,9 @@ export function ddlText(ctx, script) {
     L.push(`-- ${t.name || ''} (${t.id})`);
     L.push(`CREATE TABLE ${t.id} (`);
     const defs = [];
-    const pk = cols.filter((c) => c.pk === 'Y').map((c) => c.column_id).filter(Boolean);
+    const typed = new Set(cols.filter((c) => c.column_id && c.type_length).map((c) => c.column_id));
+    const pkAll = cols.filter((c) => c.pk === 'Y').map((c) => c.column_id).filter(Boolean);
+    const pk = pkAll.every((c) => typed.has(c)) ? pkAll : [];
     for (const c of cols) {
       if (!c.column_id) continue;
       if (!c.type_length) { defs.push(`  -- ${c.column_id} /* ${miss}: 타입 및 길이 */`); continue; }
@@ -159,8 +161,9 @@ export function ddlText(ctx, script) {
       if (c.not_null === 'Y' || c.pk === 'Y') d += ' NOT NULL';
       if (dialect === 'mysql' && c.name) d += ` COMMENT ${q(c.name)}`;
       defs.push(d);
-      if (c.fk_ref && /\./.test(c.fk_ref)) fks.push({ table: t.id, col: c.column_id, ref: c.fk_ref });
+      if (c.fk_ref && /^[A-Z0-9_]+\.[A-Z0-9_]+$/i.test(c.fk_ref) && !/\.tbd$/i.test(c.fk_ref)) fks.push({ table: t.id, col: c.column_id, ref: c.fk_ref });
     }
+    if (pkAll.length && !pk.length) defs.push(`  -- PRIMARY KEY (${pkAll.join(', ')}) /* ${miss}: 키 컬럼 타입 */`);
     if (pk.length) {
       const pkName = (t.indexes || []).find((i) => /^PK_/i.test(i.id || ''))?.id || `PK_${t.id.replace(/^TB_/, '')}`;
       defs.push(`  CONSTRAINT ${pkName} PRIMARY KEY (${pk.join(', ')})`);
@@ -178,6 +181,7 @@ export function ddlText(ctx, script) {
     }
     for (const ix of t.indexes || []) {
       if (!ix.id || /^PK_/i.test(ix.id) || !(ix.columns || []).length) continue;
+      if (!ix.columns.every((c) => typed.has(c))) { L.push(`-- 인덱스 ${ix.id} (${ix.columns.join(', ')}) /* ${miss}: 컬럼 정의 */`); continue; }
       L.push(`CREATE ${ix.unique === 'Y' ? 'UNIQUE ' : ''}INDEX ${ix.id} ON ${t.id} (${ix.columns.join(', ')});`);
     }
     if (t.trigger && !/^없음$/.test(String(t.trigger).trim())) L.push(`-- 트리거: ${String(t.trigger).replace(/\n/g, ' ')}`);

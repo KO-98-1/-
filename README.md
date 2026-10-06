@@ -5,7 +5,8 @@
 
 - 입력 자료에 **근거가 있는 내용**은 그대로 채웁니다.
 - 가이드 작성 방법상 **도출되는 설계**(클래스, 테이블, 시험케이스 등)는 AI가 작성하되 **노란 음영(검토 전)** 으로 표시합니다.
-- 근거가 없는 칸은 `(정보 부족)`, 논의됐지만 결정되지 않은 칸은 `(미정)`으로 남기고, 채우는 데 필요한 **질문지**를 만듭니다.
+- 가이드 작성 목적의 핵심 내용을 쓸 **근거가 부족한 산출물은 만들지 않습니다**(부정확한 산출물을 막기 위해). 검토 리포트에 사유와 필요한 자료를 남깁니다.
+- 만든 산출물 안에서 근거가 없는 칸은 `(정보 부족)`, 논의됐지만 결정되지 않은 칸은 `(미정)`으로 남기고, 채우는 데 필요한 **질문지**를 만듭니다.
 - 요구사항 추적표, DB 생성 스크립트(DDL), 결과서 뼈대, 모든 다이어그램은 프로그램이 자동으로 만듭니다.
 
 ## 설치
@@ -13,13 +14,19 @@
 필요: Windows/macOS/Linux, Node.js 18+, Chrome 또는 Edge(다이어그램 렌더링), Claude Code.
 
 ```powershell
-# 프로젝트 폴더에 설치
+# Windows — 프로젝트 폴더에 설치
 powershell -ExecutionPolicy Bypass -File install.ps1 -Target "D:\my-project"
 # 또는 모든 프로젝트에서 쓰도록 사용자 전체 설치
 powershell -ExecutionPolicy Bypass -File install.ps1 -Scope User
 ```
 
-설치 시 런타임(약 460MB, 주로 Mermaid 다이어그램 엔진)을 `%LOCALAPPDATA%\sw-deliverables\runtime`에 한 번만 설치하고
+```bash
+# macOS·Linux
+./install.sh /path/to/my-project     # 프로젝트에 설치
+./install.sh --user                  # 사용자 전체 설치
+```
+
+설치 시 런타임(약 460MB, 주로 Mermaid 다이어그램 엔진)을 `%LOCALAPPDATA%\sw-deliverables\runtime`(macOS·Linux는 `~/.local/share/sw-deliverables/runtime`)에 한 번만 설치하고
 모든 프로젝트가 공유합니다.
 
 ## 사용법
@@ -34,6 +41,15 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Scope User
    제·개정 이력을 남깁니다.
 
 결과물: `deliverables/output/<서브시스템>/<산출물ID>_<산출물명>.docx` (산출물 ID는 가이드 규칙 `프로젝트_서브시스템_코드_010`).
+
+## 앱으로 쓰기 (모델만 고르면 자동 작성)
+
+Claude Code 없이도 `app/`의 로컬 앱으로 쓸 수 있습니다. Codex CLI · Claude Code CLI · OpenAI API 키 · Anthropic API 키 중
+하나를 고르고 자료를 넣으면 분석 → 설계 → 구현 → 시험 산출물이 자동으로 나옵니다. 자세한 사용법은 [`app/README.md`](app/README.md).
+
+```bash
+cd app && npm install && npm start   # http://127.0.0.1:4817
+```
 
 ## 구조
 

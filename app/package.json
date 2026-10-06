@@ -1,0 +1,22 @@
+{
+  "name": "sw-deliverables-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CBD SW 표준 산출물 자동 작성 앱 — 모델(Codex·Claude·API 키)을 고르고 회의록을 넣으면 가이드 양식 산출물(DOCX)이 나온다",
+  "bin": {
+    "swd-app": "cli.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs --open",
+    "cli": "node cli.mjs",
+    "desktop": "cd desktop && npm install --no-audit --no-fund && npx electron ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "openai": "^7.23.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

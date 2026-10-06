@@ -169,7 +169,7 @@ function rowsFrom(spec, rc, baseRow) {
 function resolve(spec, row, rc, extra = {}) {
   const res = resolveCell(spec, { ...row, ...extra }, rc);
   // 추적표: 연결 없는 칸은 '-' (정보 부족이 아니라 후속 산출물 미작성)
-  if (spec.trace && (res.state === 'missing' || (res.state === 'ok' && !res.lines.length))) {
+  if (spec.trace && (res.state === 'missing' || res.state === 'none' || (res.state === 'ok' && !res.lines.length))) {
     return { lines: [rc.markers.trace_empty], state: 'ok', ai: false };
   }
   rc.stats[res.state] = (rc.stats[res.state] || 0) + 1;
@@ -283,9 +283,10 @@ function diagramCell(spec, row, rc, span = GRID) {
   const ai = row.meta && isAiUnconfirmed(row.meta, null) && spec.kind !== 'wireframe';
   const fill = ai && rc.ctx.cfg.ai_proposal?.highlight !== false ? rc.ctx.cfg.ai_proposal?.color : undefined;
   if (key && fs.existsSync(file)) {
-    kids.push(imagePara(file, rc, rc.W - 300));
     const name = row.entity?.name ? ` ${row.entity.name}` : '';
-    kids.push(para(`[그림] ${key}${name}${spec.caption_suffix ? ` — ${spec.caption_suffix}` : ''}${ai ? ' (AI 제안)' : ''}`, { size: rc.fontSize - 1, align: 'center', color: '404040', fill }));
+    const caption = `[그림] ${key}${name}${spec.caption_suffix ? ` — ${spec.caption_suffix}` : ''}${ai ? ' (AI 제안)' : ''}`;
+    kids.push(imagePara(file, rc, rc.W - 300, { caption, fill }));
+    kids.push(para(caption, { size: rc.fontSize - 1, align: 'center', color: '404040', fill }));
     rc.stats.ok = (rc.stats.ok || 0) + 1;
     if (ai) rc.aiUsed = true;
   } else {
@@ -295,7 +296,22 @@ function diagramCell(spec, row, rc, span = GRID) {
   return cell(kids, { width: rc.W, span });
 }
 
-function imagePara(file, rc, maxWdxa) {
+// 가로 쪽 그림 크기(px): 가로 A4 본문 폭·높이에서 머리글·캡션 여유를 뺀 값
+const LAND_W = ((PAGE.h - PAGE.margin * 2) / 1440) * 96;
+const LAND_H = ((PAGE.w - PAGE.margin * 2) / 1440) * 96 - 70;
+
+// 세로 문서에서 이 그림이 글씨가 읽기 어려울 만큼 줄어드는지(가로 쪽이면 충분히 커지는지)
+function isWideFigure(file, maxWdxa) {
+  if (!fs.existsSync(file)) return false;
+  const { w, h } = pngSize(fs.readFileSync(file));
+  const cw = w / 2;
+  const ch = h / 2;
+  const scale = Math.min(1, ((maxWdxa / 1440) * 96) / cw, 540 / ch);
+  const landScale = Math.min(1, LAND_W / cw, LAND_H / ch);
+  return scale < 0.6 && landScale >= scale * 1.3;
+}
+
+function imagePara(file, rc, maxWdxa, figure = null) {
   const buf = fs.readFileSync(file);
   const { w, h } = pngSize(buf);
   let cw = w / 2;
@@ -303,6 +319,14 @@ function imagePara(file, rc, maxWdxa) {
   const maxW = (maxWdxa / 1440) * 96;
   const maxH = rc.landscape ? 380 : 540; // 헤더가 있는 첫 쪽에도 그림이 들어가도록
   const scale = Math.min(1, maxW / cw, maxH / ch);
+  // 세로 문서에서 글씨가 읽기 어려울 만큼 줄어드는 넓은 그림은 바로 뒤 가로 쪽에 크게 싣는다
+  if (figure && !rc.landscape) {
+    const landScale = Math.min(1, LAND_W / cw, LAND_H / ch);
+    if (isWideFigure(file, maxWdxa)) {
+      rc.pendingFigures.push({ buf, cw: Math.round(cw * landScale), ch: Math.round(ch * landScale), caption: figure.caption, fill: figure.fill });
+      return para('(그림이 커서 바로 다음 가로 쪽에 크게 실었습니다)', { size: rc.fontSize - 1, align: 'center', color: '606060', italics: true, before: 60, after: 60 });
+    }
+  }
   cw = Math.round(cw * scale);
   ch = Math.round(ch * scale);
   return new D.Paragraph({
@@ -375,9 +399,25 @@ function cards(spec, rc) {
     return [para(rc.markers.missing, { size: rc.fontSize, color: COLORS.missing, italics: true, after: 120 })];
   }
   const out = [];
+  const landW = PAGE.h - PAGE.margin * 2;
   for (const row of rows) {
+    // 넓은 그림(시퀀스도 등)이 든 카드는 카드 전체를 가로 쪽에 싣는다(세로 쪽에서 글씨가 너무 작아지는 것 방지)
+    const wide = !rc.landscape && spec.rows.some((r) => {
+      if (!r.diagram) return false;
+      const key = r.diagram.key ? getPath(row.entity, r.diagram.key) ?? getPath(row, r.diagram.key) : null;
+      return key && isWideFigure(diagramPath(rc.ctx, rc.sub, r.diagram.kind, key), rc.W - 300);
+    });
+    if (wide) {
+      const keep = { W: rc.W, landscape: rc.landscape };
+      Object.assign(rc, { W: landW, landscape: true });
+      const t = cardTable(spec, row, rc);
+      Object.assign(rc, keep);
+      out.push({ landscape: [t, para('', { after: 160 })] });
+      continue;
+    }
     out.push(cardTable(spec, row, rc));
     out.push(para('', { after: 160 }));
+    if (rc.pendingFigures.length) out.push({ figures: rc.pendingFigures.splice(0) });
   }
   return out;
 }
@@ -391,10 +431,13 @@ function standaloneDiagram(spec, rc) {
     const ai = meta && isAiUnconfirmed(meta, 'mermaid');
     if (ai) rc.aiUsed = true;
     rc.stats.ok = (rc.stats.ok || 0) + 1;
-    return [
-      imagePara(file, rc, rc.W),
-      para(`[그림] ${spec.caption || key}${ai ? ' (AI 제안)' : ''}`, { size: rc.fontSize - 1, align: 'center', color: '404040', after: 160, fill: ai ? rc.ctx.cfg.ai_proposal?.color : undefined }),
-    ];
+    const caption = `[그림] ${spec.caption || key}${ai ? ' (AI 제안)' : ''}`;
+    const fill = ai ? rc.ctx.cfg.ai_proposal?.color : undefined;
+    const before = rc.pendingFigures.length;
+    const img = imagePara(file, rc, rc.W, { caption, fill });
+    // 가로 쪽으로 옮긴 그림은 캡션도 그쪽에만 둔다(원래 자리에는 안내 한 줄)
+    if (rc.pendingFigures.length > before) return [img];
+    return [img, para(caption, { size: rc.fontSize - 1, align: 'center', color: '404040', after: 160, fill })];
   }
   rc.stats.missing = (rc.stats.missing || 0) + 1;
   return [para(rc.markers.missing, { size: rc.fontSize, color: COLORS.missing, italics: true, after: 120 })];
@@ -411,7 +454,7 @@ function textParas(value, meta, field, rc, o = {}) {
   rc.stats.ok = (rc.stats.ok || 0) + 1;
   if (ai) { rc.stats.ai = (rc.stats.ai || 0) + 1; rc.aiUsed = true; }
   const fill = ai && rc.ctx.cfg.ai_proposal?.highlight !== false ? rc.ctx.cfg.ai_proposal?.color : undefined;
-  const lines = Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? (value.length > 1 && !/^\s*[-•·\d]/.test(v) ? `- ${v}` : v) : JSON.stringify(v))) : String(value).split('\n');
+  const lines = Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? (value.length > 1 && !/^\s*[-•·\d]/.test(v) ? `- ${v}` : v) : (v && typeof v === 'object' ? Object.entries(v).map(([k, x]) => `${k}: ${typeof x === 'object' ? JSON.stringify(x) : x}`).join(', ') : String(v)))) : String(value).split('\n');
   return lines.map((l, i) => para(l, { fill, after: i === lines.length - 1 ? 120 : 0, indent: o.indent }));
 }
 
@@ -429,7 +472,9 @@ function textBlock(spec, rc) {
 // ── 서술형(목차형) 산출물 ───────────────────────────────
 function heading(num, title, depth) {
   const size = depth <= 1 ? 24 : depth === 2 ? 22 : 20;
-  return para(`${num}${title ? ` ${title}` : ''}`.trim(), { bold: true, size, before: depth <= 1 ? 280 : 180, after: 100, keepNext: true });
+  const p = para(`${num}${title ? ` ${title}` : ''}`.trim(), { bold: true, size, before: depth <= 1 ? 280 : 180, after: 100, keepNext: true });
+  p.movesWithNext = true; // 바로 뒤가 가로 쪽 구역이면 제목도 함께 옮긴다(제목만 남은 쪽 방지)
+  return p;
 }
 
 function simpleTable(columns, rows, rc, meta) {
@@ -508,6 +553,7 @@ function narrative(rc) {
     }
     out.push(heading(node.plain_title ? node.plain_title : node.num, node.plain_title ? '' : node.title, depthOf(node.num)));
     if (node.key) out.push(...sectionContent(sections[node.key], node, rc, `${node.key}`));
+    if (rc.pendingFigures.length) out.push({ figures: rc.pendingFigures.splice(0) });
   }
   return out;
 }
@@ -544,6 +590,52 @@ function headerTable(rc) {
   return table(rows, widths);
 }
 
+// 본문을 쪽 방향별 구역으로 나눈다: {figures} 표시가 있으면 그 자리에 가로 쪽 구역을 넣고 다시 원래 방향으로 돌아온다
+function toSections(children, landscape, docId, schema, rc) {
+  const props = (land) => ({
+    page: {
+      size: { width: PAGE.w, height: PAGE.h, orientation: land ? D.PageOrientation.LANDSCAPE : D.PageOrientation.PORTRAIT },
+      margin: { top: PAGE.margin, bottom: PAGE.margin, left: PAGE.margin, right: PAGE.margin, header: 567, footer: 567 },
+    },
+  });
+  const hf = () => ({
+    headers: { default: new D.Header({ children: [para(`${docId}   ${schema.name}`, { size: 15, align: 'right', color: '606060' })] }) },
+    footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ children: ['- ', D.PageNumber.CURRENT, ' -'], size: 16 })] })] }) },
+  });
+  const sections = [];
+  let cur = [];
+  const close = () => { if (cur.length) sections.push({ properties: props(landscape), ...hf(), children: cur }); cur = []; };
+  let land = null; // 연속된 가로 카드는 한 구역으로
+  const closeLand = () => { if (land) sections.push({ properties: props(true), ...hf(), children: land }); land = null; };
+  for (const c of children) {
+    if (c && c.landscape) {
+      if (landscape) { cur.push(...c.landscape); continue; }
+      // 세로 구역 끝에 남은 제목은 가로 구역 앞으로 옮긴다
+      const moved = [];
+      while (!land && cur.length && cur[cur.length - 1]?.movesWithNext) moved.unshift(cur.pop());
+      close();
+      land = [...(land || []), ...moved, ...c.landscape];
+      continue;
+    }
+    closeLand();
+    if (c && c.figures) {
+      close();
+      const kids = [];
+      c.figures.forEach((f, i) => {
+        kids.push(new D.Paragraph({
+          alignment: D.AlignmentType.CENTER, pageBreakBefore: i > 0, spacing: { after: 60 },
+          children: [new D.ImageRun({ type: 'png', data: f.buf, transformation: { width: f.cw, height: f.ch } })],
+        }));
+        kids.push(para(f.caption, { size: rc.fontSize - 1, align: 'center', color: '404040', fill: f.fill }));
+      });
+      sections.push({ properties: props(true), ...hf(), children: kids });
+    } else cur.push(c);
+  }
+  closeLand();
+  close();
+  return sections;
+}
+
 // ── 문서 생성 ───────────────────────────────────────────
 export async function renderDoc(ctx, model, code, sub) {
   if (!D) D = await dep('docx');
@@ -561,6 +653,7 @@ export async function renderDoc(ctx, model, code, sub) {
     inputIndex: await loadInputIndex(ctx.p),
     stats: {},
     aiUsed: false,
+    pendingFigures: [], // 세로 쪽에서 너무 작아지는 그림 → 바로 뒤 가로 쪽으로
   };
   // D9: 서브시스템 문서에 공용 데이터베이스 정의를 합쳐 보여준다
   const body = [];
@@ -573,6 +666,7 @@ export async function renderDoc(ctx, model, code, sub) {
     else if (block.diagram) body.push(...standaloneDiagram(block.diagram, rc));
     else if (block.textblock) body.push(...textBlock(block.textblock, rc));
     else if (block.narrative) body.push(...narrative(rc));
+    if (rc.pendingFigures.length) body.push({ figures: rc.pendingFigures.splice(0) });
   }
   const docId = documentId(ctx.cfg, sub, schema.doc);
   const children = [
@@ -595,17 +689,7 @@ export async function renderDoc(ctx, model, code, sub) {
         document: { run: { font: { ascii: 'Malgun Gothic', eastAsia: ctx.cfg.document?.font || '맑은 고딕', hAnsi: 'Malgun Gothic', cs: 'Malgun Gothic' }, size: 20 } },
       },
     },
-    sections: [{
-      properties: {
-        page: {
-          size: { width: PAGE.w, height: PAGE.h, orientation: landscape ? D.PageOrientation.LANDSCAPE : D.PageOrientation.PORTRAIT },
-          margin: { top: PAGE.margin, bottom: PAGE.margin, left: PAGE.margin, right: PAGE.margin, header: 567, footer: 567 },
-        },
-      },
-      headers: { default: new D.Header({ children: [para(`${docId}   ${schema.name}`, { size: 15, align: 'right', color: '606060' })] }) },
-      footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ children: ['- ', D.PageNumber.CURRENT, ' -'], size: 16 })] })] }) },
-      children,
-    }],
+    sections: toSections(children, landscape, docId, schema, rc),
   });
   const file = outputFile(ctx, sub, schema);
   fs.mkdirSync(path.dirname(file), { recursive: true });

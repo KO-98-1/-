@@ -9,6 +9,7 @@ optional: true
 purpose: 분석 관점의 개념 클래스(Boundary·Control·Entity)를 도출하여 설계 클래스와 엔티티 도출의 기반으로 삼는다.
 method: 개념적 클래스 모형 기술서가 필요한 경우에 분석단계 산출물로 추가하여 작성할 수 있다. 서브시스템별로 작성한다.
 depends_on: [R2]
+basis: "가이드 Ⅳ.1.1: '개념적 클래스 모형 기술서가 필요한 경우에 분석단계 산출물로 추가하여 작성할 수 있다' → 선택 산출물(sw-config.yaml deliverables.optional에 있을 때만). R1·R2에서 개념 클래스를 식별할 수 있어야 한다."   # 가이드 근거 — 이 핵심 내용을 입력·선행 산출물로 쓸 수 없으면 이 산출물은 만들지 않는다
 entities:
   concept_classes:
     id_type: CC

@@ -12,6 +12,7 @@ deliverables/
 ├─ model/                    단일 진실 원천(YAML) — 서브에이전트가 작성
 │   ├─ <SUB>/<코드>.yaml      서브시스템 산출물 데이터 (R1, R2, D1 …)
 │   ├─ SYSTEM/<코드>.yaml     시스템 공통 (GL, D5, D6, D9 databases, D12, T4, T5)
+│   ├─ <SUB>/_skip.yaml       근거 부족으로 만들지 않은 산출물 {코드: {reason, needs, sources}}
 │   └─ history.yaml          제·개정 이력
 ├─ output/                   생성 산출물(DOCX) — 제출용
 │   ├─ <SUB>_<이름>/<산출물ID>_<산출물명>.docx, DDL/*.sql
@@ -35,8 +36,11 @@ deliverables/
 | `prompt --stage <단계> --all \| --sub <ID> [--docs ..]` | 작성 지시서 생성 |
 | `next-id --type UC --sub SA [--cat SFR] [--count 3]` | 다음 ID 계산 |
 | `validate [--sub] [--docs] [--json]` | 검증(오류 있으면 종료코드 1) |
+| `preskip --stage <단계>` | 선행 산출물이 없거나 생략된 산출물, 비기능 요구사항이 없는 서브시스템의 D7을 생략으로 기록 |
 | `derive --stage implementation\|test` | 결과서 뼈대 현행화(기존 결과 칸은 보존) |
 | `scan-code --src <폴더> --sub <ID>` | 소스 → I1 프로그램 목록 초안 |
+| `link` | 병합 후 서브시스템 간 엔티티 관계를 테이블 FK(fk_ref)로 보완(설계단계) |
+| `ddl-check` | 생성한 DDL을 내장 PostgreSQL(PGlite)에서 실행해 테이블·FK가 실제로 만들어지는지 확인 |
 | `diagrams [--force]` | 다이어그램 생성(변경분만) |
 | `render [--sub] [--docs 코드\|단계]` | DOCX 생성 |
 | `build --stage <단계>` | validate → diagrams → render → report |
@@ -64,6 +68,17 @@ requirements:
 ```
 
 서술형 산출물(D6·D12·T3·T4·T5)은 `sections: {"<목차번호>": {text, table: {columns, rows}, mermaid, _meta}}`.
+
+## 생략 기록 형식 (`model/<SUB>/_skip.yaml`)
+
+```yaml
+T4:
+  reason: "가이드 Ⅲ.4.4 운영자 지침서는 개발한 시스템의 관리·운영 지침인데 운영 환경·운영 절차 자료가 없다"
+  needs: "서버·네트워크 구성, 배포·백업·모니터링·장애 대응 절차"
+  sources: [MTG-002:34]
+```
+
+생략한 산출물은 문서를 만들지 않고 추적성 검사에서도 빠진다. 같은 코드의 모델 파일과 함께 있으면 검증 오류다.
 
 ## 검증이 잡는 것
 

@@ -7,6 +7,18 @@ function has(cmd, argsV = ['-v']) {
   try { execFileSync(cmd, argsV, { stdio: 'ignore' }); return true; } catch { return false; }
 }
 
+// LibreOffice 위치: SWD_SOFFICE → PATH → 흔한 설치 경로
+function findSoffice() {
+  if (process.env.SWD_SOFFICE && fs.existsSync(process.env.SWD_SOFFICE)) return process.env.SWD_SOFFICE;
+  if (has('soffice', ['--version'])) return 'soffice';
+  const list = [
+    'C:/Program Files/LibreOffice/program/soffice.exe', 'C:/Program Files (x86)/LibreOffice/program/soffice.exe',
+    '/Applications/LibreOffice.app/Contents/MacOS/soffice', '/usr/bin/libreoffice', '/usr/lib/libreoffice/program/soffice',
+  ];
+  try { for (const d of fs.readdirSync('/opt')) if (/^libreoffice/i.test(d)) list.push(`/opt/${d}/program/soffice`); } catch { /* 없음 */ }
+  return list.find((p) => fs.existsSync(p)) || null;
+}
+
 export async function preview(file, outDir) {
   if (!file || !fs.existsSync(file)) throw new Error(`파일이 없습니다: ${file}`);
   const abs = path.resolve(file);
@@ -36,11 +48,12 @@ try {
       }
     }
   }
-  if (!fs.existsSync(pdf) && has('soffice', ['--version'])) {
-    execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', out, abs], { stdio: 'ignore', timeout: 180000 });
+  const soffice = !fs.existsSync(pdf) ? findSoffice() : null;
+  if (soffice) {
+    execFileSync(soffice, ['--headless', '--convert-to', 'pdf', '--outdir', out, abs], { stdio: 'ignore', timeout: 180000 });
     logs.push(`PDF(LibreOffice): ${pdf}`);
   }
-  if (!fs.existsSync(pdf)) { logs.push('PDF로 변환할 도구(Word/LibreOffice)가 없습니다.'); return logs; }
+  if (!fs.existsSync(pdf)) { logs.push('PDF로 변환할 도구(Word/LibreOffice)가 없습니다. LibreOffice를 설치하거나 SWD_SOFFICE에 soffice 경로를 지정하세요.'); return logs; }
   if (has('pdftoppm')) {
     const prefix = path.join(out, path.basename(pdf, '.pdf'));
     execFileSync('pdftoppm', ['-png', '-r', '70', pdf, prefix], { stdio: 'ignore' });

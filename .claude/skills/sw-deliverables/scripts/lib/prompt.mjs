@@ -5,7 +5,7 @@ import { SKILL_DIR, SCRIPTS_DIR } from './deps.mjs';
 import { readYaml, subsystemById } from './project.mjs';
 import { activeDeliverables, PHASE_NAMES } from './schema.mjs';
 import { nextIds } from './ids.mjs';
-import { modelFile } from './model.mjs';
+import { modelFile, skipFile } from './model.mjs';
 import { loadInputIndex } from './ingest.mjs';
 
 // 단계별 작성 대상(의존 순서). 결과서(I2·T1·T2·T7)·추적표(R3)·DDL(I3)은 프로그램이 파생한다.
@@ -22,10 +22,10 @@ const READS = {
   test: ['R1', 'R2', 'D2', 'D5', 'D10'],
 };
 
-export function planDocs(ctx, stage, sub) {
+export function planDocs(ctx, stage, sub, model = null) {
   const active = new Set(activeDeliverables(ctx.schemas, ctx.cfg).map((s) => s.code));
   const list = (sub === 'SYSTEM' ? PLAN[stage]?.system : PLAN[stage]?.sub) || [];
-  return list.filter((c) => active.has(c));
+  return list.filter((c) => active.has(c) && !model?.isSkipped(sub, c));
 }
 
 function typeLabel(f) {
@@ -101,12 +101,14 @@ function skeleton(schema) {
   return L.join('\n');
 }
 
-function schemaSection(ctx, schema, sub) {
+export function schemaSection(ctx, schema, sub) {
   const file = path.relative(ctx.p.root, modelFile(ctx.p, sub, schema.code)).replace(/\\/g, '/');
   const L = [];
   L.push(`### ${schema.code} ${schema.name}  →  \`${file}\``);
   L.push(`- 작성 목적: ${schema.purpose}`);
   L.push(`- 작성 방법: ${schema.method}`);
+  if (sub === 'SYSTEM' && schema.code === 'D9') L.push('- **작성 근거 기준**: 시스템 공통 D9는 공용 데이터베이스 목록(databases)만 쓴다. 테이블은 각 서브시스템 D9에 있으므로 선행 D8 기준은 적용하지 않으며, 이미 정의된 데이터베이스는 유지한다(생략하지 않는다).');
+  else if (schema.basis) L.push(`- **작성 근거 기준**: ${schema.basis}`);
   if (schema.skippable) L.push(`- 생략 조건: ${schema.skippable}`);
   if (schema.results === false) L.push('- 이 산출물은 시험결과(result)를 기술하지 않는다.');
   for (const [coll, e] of Object.entries(schema.entities || {})) {
@@ -151,9 +153,46 @@ function idTable(ctx, model, sub, docs) {
   return L.join('\n');
 }
 
+// 도구가 없는 모델(API 호출)용: 근거 텍스트·참고 파일·현재 내용을 지시서에 넣고, 출력 형식을 파일 블록으로 고정한다.
+function inlineTail(ctx, model, { sub, docs, writeFiles, skipRel, readList, inputs, focus, change }) {
+  const L = [];
+  const readText = (f) => { const full = path.join(ctx.p.root, f); return fs.existsSync(full) ? fs.readFileSync(full, 'utf8') : null; };
+  L.push('## 6. 작업 방법과 출력 형식', '');
+  if (change) {
+    L.push(`**이번 작업은 신규 작성이 아니라 수정사항 반영이다.** 근거: \`${change.inputId}\``, '', '사용자가 승인한 변경 목록(이것만 반영한다):', '', change.notes, '');
+    L.push('- 승인된 변경에 해당하는 항목만 고치고, 관련 없는 항목·ID·문장은 그대로 둔다. 바뀐 항목의 `_meta.sources`에 수정사항 입력 줄을 추가한다.');
+  } else {
+    L.push('- 5장의 **작성 근거 기준**(가이드 작성 목적·방법)을 먼저 확인한다. 핵심 내용을 근거 자료나 참고 산출물에서 근거를 들어 쓸 수 없으면 파일 대신 생략 블록을 출력한다.');
+    L.push('- 일부 칸만 근거가 없으면 산출물은 만들고 그 칸은 키를 생략한다. 빈칸을 추측으로 채우지 않는다.');
+  }
+  L.push('- 참고 산출물의 ID를 정확히 참조하고, 4장의 다음 번호 규칙으로 새 ID를 붙인다.');
+  L.push('- 출력은 아래 블록만 쓴다(설명 문장 없이). 파일 블록에는 **파일 전체 내용**을 YAML로 쓴다.', '');
+  L.push('```', ...writeFiles.map((f) => `=== FILE: ${f}\n<YAML 전체>\n=== END`), '```', '');
+  L.push('근거가 부족해 만들지 않을 산출물이 있으면 그 산출물의 파일 블록 대신:', '', '```', `=== SKIP: <코드>\nreason: "가이드 작성 목적의 어떤 내용을 쓸 근거가 없는지"\nneeds: "생략을 해소하려면 필요한 자료"\nsources: [입력ID:줄]\n=== END`, '```', '');
+  L.push('## 부록 A. 근거 자료(정규화 텍스트, 줄 번호)', '');
+  const focused = [...inputs.values()].filter((x) => x.status === 'ok' && (!focus || (focus.inputs?.[x.id] ?? focus[x.id])));
+  for (const x of (focused.length ? focused : [...inputs.values()].filter((y) => y.status === 'ok'))) {
+    const t = readText(x.text);
+    if (t === null) continue;
+    L.push(`### ${x.id} — ${x.title}`, '```text', ...t.replace(/\r/g, '').split('\n').map((line, i) => `${i + 1}\t${line}`), '```', '');
+  }
+  if (readList.length) {
+    L.push('## 부록 B. 참고 산출물(읽기 전용)', '');
+    for (const r of readList) { const t = readText(r.file); if (t) L.push(`### ${r.file}${r.note ? ` (${r.note})` : ''}`, '```yaml', t.trimEnd(), '```', ''); }
+  }
+  const current = writeFiles.map((f) => [f, readText(f)]).filter(([, t]) => t);
+  const skipNow = readText(skipRel);
+  if (current.length || skipNow) {
+    L.push('## 부록 C. 현재 내용(이것을 바탕으로 고쳐 쓴다)', '');
+    for (const [f, t] of current) L.push(`### ${f}`, '```yaml', t.trimEnd(), '```', '');
+    if (skipNow) L.push(`### ${skipRel}`, '```yaml', skipNow.trimEnd(), '```', '');
+  }
+  return L;
+}
+
 export async function buildPrompt(ctx, model, opts) {
   const { stage, sub, docs: docsOverride } = opts;
-  const docs = docsOverride || planDocs(ctx, stage, sub);
+  const docs = docsOverride || planDocs(ctx, stage, sub, model);
   const s = subsystemById(ctx.cfg, sub) || { id: sub, name: sub };
   const inputs = await loadInputIndex(ctx.p);
   const alloc = (await readYaml(path.join(ctx.p.work, 'allocation.yaml'), {})) || {};
@@ -163,12 +202,25 @@ export async function buildPrompt(ctx, model, opts) {
   const diagramRules = fs.readFileSync(path.join(SKILL_DIR, 'reference', 'diagram-style.md'), 'utf8');
   const rel = (f) => path.relative(ctx.p.root, f).replace(/\\/g, '/');
   const writeFiles = docs.map((c) => rel(modelFile(ctx.p, sub, c)));
-  const readFiles = [];
+  const skipRel = rel(skipFile(ctx.p, sub));
+  const readList = []; // {file: 산출물 루트 기준 경로, note}
   for (const c of READS[stage] || []) {
-    for (const x of model.subsOf(c)) readFiles.push(`${rel(modelFile(ctx.p, x, c))}${x === sub ? '' : ' (다른 서브시스템 — ID 참조용)'}`);
+    for (const x of model.subsOf(c)) readList.push({ file: rel(modelFile(ctx.p, x, c)), note: x === sub ? '' : '다른 서브시스템 — ID 참조용' });
   }
-  if (stage === 'design' && sub !== 'SYSTEM' && model.has('SYSTEM', 'D9')) readFiles.push('model/SYSTEM/D9.yaml (데이터베이스 ID 참조)');
-  if (stage === 'design' && sub === 'SYSTEM') for (const x of model.subsOf('D3')) readFiles.push(rel(modelFile(ctx.p, x, 'D3')));
+  if (stage === 'design' && sub !== 'SYSTEM' && model.has('SYSTEM', 'D9')) readList.push({ file: 'model/SYSTEM/D9.yaml', note: '데이터베이스 ID 참조' });
+  // 테이블 설계·수정 시 다른 서브시스템 테이블의 키 컬럼(fk_ref 대상)을 확인할 수 있게
+  if (stage === 'design' && sub !== 'SYSTEM' && docs.includes('D9')) {
+    for (const x of model.subsOf('D9')) if (x !== sub && x !== 'SYSTEM') readList.push({ file: rel(modelFile(ctx.p, x, 'D9')), note: '다른 서브시스템 — fk_ref 대상 테이블·키 컬럼 확인용' });
+  }
+  if (stage === 'design' && sub === 'SYSTEM') for (const x of model.subsOf('D3')) readList.push({ file: rel(modelFile(ctx.p, x, 'D3')), note: '' });
+  // 인라인(도구 없는 모델): 같은 단계에서 이미 작성한 이 서브시스템 산출물도 참고로 넘긴다
+  if (opts.inline) {
+    for (const c of planDocs(ctx, stage, sub)) {
+      const f = rel(modelFile(ctx.p, sub, c));
+      if (!docs.includes(c) && model.has(sub, c) && !readList.some((r) => r.file === f)) readList.push({ file: f, note: '같은 단계에서 먼저 작성됨' });
+    }
+  }
+  const readFiles = readList.map((r) => `${r.file}${r.note ? ` (${r.note})` : ''}`);
 
   const L = [];
   const title = opts.change ? `수정사항 반영 지시서 — ${opts.change.inputId}` : `산출물 작성 지시서 — ${PHASE_NAMES[stage]}단계`;
@@ -178,12 +230,16 @@ export async function buildPrompt(ctx, model, opts) {
   L.push(`- 작업 폴더(산출물 루트): \`${ctx.p.root}\` — 아래 경로는 모두 이 폴더 기준`);
   L.push(`- 시스템: ${ctx.cfg.project?.system_name || '(미설정)'} / 서브시스템: ${s.id} ${s.name}${s.description ? ` — ${s.description}` : ''}`);
   L.push(`- 작성할 산출물(이 순서로): ${docs.map((c) => `${c} ${ctx.schemas.byCode[c].name}`).join(' → ')}`);
-  L.push(`- **쓰기 허용 파일**: ${writeFiles.map((f) => `\`${f}\``).join(', ')} (이미 있으면 기존 내용을 유지·보완한다. 다른 파일은 수정 금지)`);
+  L.push(`- **쓰기 허용 파일**: ${writeFiles.map((f) => `\`${f}\``).join(', ')} (이미 있으면 기존 내용을 유지·보완한다), 생략 기록 \`${skipRel}\` — 다른 파일은 수정 금지`);
+  const prevSkips = Object.entries(model.skipped?.[sub] || {});
+  if (prevSkips.length) L.push(`- 이미 생략으로 기록된 산출물(근거 부족 — 작성하지 않는다, 기존 기록 유지): ${prevSkips.map(([c, x]) => `${c}(${x?.reason || ''})`).join('; ')}`);
   if (readFiles.length) L.push(`- 읽기 전용 참고: ${readFiles.map((f) => `\`${f}\``).join(', ')}`);
   L.push(`- 서브시스템 목록(교차 참조용): ${ctx.cfg.subsystems.map((x) => `${x.id} ${x.name}`).join(', ')}`, '');
 
   L.push('## 2. 입력 자료(근거)', '');
-  L.push('Read 도구로 아래 정규화 텍스트를 읽는다(원본 파일은 읽지 않는다). 근거 줄 번호를 `_meta.sources`에 `입력ID:시작-끝`으로 남긴다.', '');
+  L.push(opts.inline
+    ? '아래 부록 A의 정규화 텍스트(줄 번호 포함)가 근거 자료다. 근거 줄 번호를 `_meta.sources`에 `입력ID:시작-끝`으로 남긴다.'
+    : 'Read 도구로 아래 정규화 텍스트를 읽는다(원본 파일은 읽지 않는다). 근거 줄 번호를 `_meta.sources`에 `입력ID:시작-끝`으로 남긴다.', '');
   L.push('| 입력ID | 종류 | 제목 | 일자 | 파일 | 이 서브시스템 관련 줄 |', '|---|---|---|---|---|---|');
   for (const x of inputs.values()) {
     if (x.status !== 'ok') continue;
@@ -203,6 +259,11 @@ export async function buildPrompt(ctx, model, opts) {
   for (const code of docs) L.push(schemaSection(ctx, ctx.schemas.byCode[code], sub));
   if (docs.some((c) => ['D5', 'D6', 'D12', 'T4', 'T5'].includes(c))) L.push('## 부록. 다이어그램 스타일', '', demote(diagramRules), '');
 
+  if (opts.inline) {
+    L.push(...inlineTail(ctx, model, { sub, docs, writeFiles, skipRel, readList, inputs, focus, change: opts.change }));
+    return L.join('\n');
+  }
+
   L.push('## 6. 작업 순서', '');
   if (opts.change) {
     L.push(`**이번 작업은 신규 작성이 아니라 수정사항 반영이다.** 근거: \`${opts.change.inputId}\` (\`.work/inputs/${opts.change.inputId}.txt\`)`);
@@ -213,14 +274,19 @@ export async function buildPrompt(ctx, model, opts) {
     L.push('4. 변경 때문에 더 이상 맞지 않게 된 문장(예: 이전 수치·이전 개수)이 같은 파일 안에 남지 않도록 모두 찾아 고친다.');
   } else {
     L.push('1. 입력 자료와 읽기 전용 참고 파일을 모두 읽는다.');
-    L.push('2. 위 순서대로 각 YAML 파일을 작성한다(Write 도구, UTF-8). 앞 산출물의 ID를 뒤 산출물이 참조하도록 일관되게 연결한다.');
+    L.push('2. 산출물마다 5장의 **작성 근거 기준**(가이드 작성 목적·방법)을 먼저 확인한다. 그 핵심 내용을 입력 자료나 선행 산출물에서 근거를 들어 쓸 수 없으면 **그 산출물 파일을 만들지 않고** 생략 기록에 남긴다:');
+    L.push(`   \`${skipRel}\` → \`<코드>: {reason: "가이드 작성 목적의 어떤 내용을 쓸 근거가 없는지", needs: "생략을 해소하려면 필요한 자료", sources: [확인한 입력 줄]}\``);
+    L.push('   - 앞 산출물을 생략했으면 그것을 선행 산출물로 쓰는 뒤 산출물도 기준을 다시 확인한다.');
+    L.push('   - 일부 칸만 근거가 없으면 산출물은 만들고 그 칸은 키를 생략한다(문서에 정보 부족으로 표시). 빈칸을 추측으로 채우지 않는다.');
+    L.push('3. 만들기로 한 산출물을 위 순서대로 YAML로 작성한다(Write 도구, UTF-8). 앞 산출물의 ID를 뒤 산출물이 참조하도록 일관되게 연결한다.');
   }
-  L.push(`3. 검증: \`node "${swd}" validate --root "${ctx.p.root}" --sub ${sub} --docs ${docs.join(',')}\``);
+  const n0 = opts.change ? 5 : 4;
+  L.push(`${n0}. 검증: \`node "${swd}" validate --root "${ctx.p.root}" --sub ${sub} --docs ${docs.join(',')}\``);
   L.push('   - **오류(error)는 0건이 될 때까지** 고친다. 경고 중 추적성 누락은 가능한 한 해소하고, 입력 근거가 없어 해소할 수 없으면 그대로 둔다.');
   L.push('   - 다른 서브시스템 ID를 참조해 생기는 "참조 대상 없음" 오류는 그 ID가 아직 작성되지 않았을 수 있다 — 보고서에 적고 넘어간다.');
-  L.push('4. 문서(docx) 렌더링은 하지 않는다(마스터가 병합 후 수행).', '');
+  L.push(`${n0 + 1}. 문서(docx) 렌더링은 하지 않는다(마스터가 병합 후 수행).`, '');
   L.push('## 7. 결과 보고 (마지막 메시지, 이 형식 그대로, 20줄 이내)', '');
-  L.push('```', `서브시스템: ${sub}`, '작성: <코드>(<컬렉션> <개수>, …), …', '검증: 오류 <n> / 경고 <n>', 'AI 제안: <n>건 — 주요: <요약>', '미정: <n>건 — <요약>', '핵심 질문: <정보가 없어 비워 둔 것 중 사용자에게 물어야 할 것, 최대 5개>', '충돌·이슈: <입력 자료 간 모순, 다른 서브시스템과 맞춰야 할 ID 등>', '```');
+  L.push('```', `서브시스템: ${sub}`, '작성: <코드>(<컬렉션> <개수>, …), …', '생략: <코드>(<사유 요약>), … 또는 없음', '검증: 오류 <n> / 경고 <n>', 'AI 제안: <n>건 — 주요: <요약>', '미정: <n>건 — <요약>', '핵심 질문: <정보가 없어 비워 둔 것 중 사용자에게 물어야 할 것, 최대 5개>', '충돌·이슈: <입력 자료 간 모순, 다른 서브시스템과 맞춰야 할 ID 등>', '```');
   return L.join('\n');
 }
 
